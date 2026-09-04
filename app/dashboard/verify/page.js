@@ -291,9 +291,50 @@ export default function VerificationPortalPage() {
   const [livenessPassed, setLivenessPassed] = useState(false);
   const [livenessScore, setLivenessScore] = useState(0);
 
+  // Biometric Liveness & FastAPI Verification State
+  const [fastApiMatchResult, setFastApiMatchResult] = useState(null);
+  const [fastApiMatching, setFastApiMatching] = useState(false);
+
   // Submission State
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
+
+  const runFastApiFaceMatch = async () => {
+    const passportDoc = uploadedDocs.passport?.dataUrl;
+    if (!passportDoc || !snapshotData) {
+      setErrorMsg("Please upload your passport in Step 1 and capture your portrait photo before running live AI face match.");
+      return;
+    }
+    setFastApiMatching(true);
+    setErrorMsg("");
+    try {
+      const res = await fetch("/api/kyc/face-match", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          documentImage: passportDoc,
+          selfieImage: snapshotData,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Biometric face match service returned an error.");
+      }
+      setFastApiMatchResult(data);
+      if (data.approved || (data.similarity && data.similarity >= 80)) {
+        setLivenessPassed(true);
+        if (data.similarity) setLivenessScore(data.similarity / 100);
+      }
+    } catch (err) {
+      setFastApiMatchResult({
+        approved: false,
+        error: err.message,
+      });
+    } finally {
+      setFastApiMatching(false);
+    }
+  };
+
 
   // Load active KYC state from server
   const loadKycStatus = async () => {
@@ -430,9 +471,32 @@ export default function VerificationPortalPage() {
           uploadedAt: new Date().toISOString(),
         },
       }));
+
+      // Asynchronously evaluate document quality & features with Python ML
+      if (typeof base64Data === "string" && base64Data.startsWith("data:image/")) {
+        fetch("/api/kyc/document-verify", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ docType: docId, imageBase64: base64Data }),
+        })
+          .then((r) => r.json())
+          .then((mlData) => {
+            if (mlData?.features) {
+              setUploadedDocs((prev) => ({
+                ...prev,
+                [docId]: {
+                  ...prev[docId],
+                  mlEvaluation: mlData,
+                },
+              }));
+            }
+          })
+          .catch(() => {});
+      }
     };
     reader.readAsDataURL(file);
   };
+
 
   // Trigger AI OCR Auto-Fill Simulation
   const handleRunOcrExtraction = () => {
@@ -483,7 +547,9 @@ export default function VerificationPortalPage() {
           face_snapshot: snapshotData,
           liveness_passed: livenessPassed,
           liveness_score: livenessScore,
+          fastapi_face_match: fastApiMatchResult,
         },
+
       };
 
       const res = await fetch("/api/kyc/submit", {
@@ -928,7 +994,31 @@ export default function VerificationPortalPage() {
                           )}
                         </div>
                         <p className="text-[11px] text-slate-500">{doc.hint}</p>
+                        {uploaded?.mlEvaluation && (
+                          <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[10px]">
+                            <span
+                              className={`inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 font-bold ${
+                                uploaded.mlEvaluation.approved
+                                  ? "bg-emerald-100 text-emerald-800"
+                                  : "bg-amber-100 text-amber-800"
+                              }`}
+                            >
+                              <Sparkles className="size-3" />
+                              {uploaded.mlEvaluation.approved ? "AI Format Validated" : "AI Review Flagged"}
+                            </span>
+                            <span className="rounded-md bg-indigo-100 px-1.5 py-0.5 font-medium text-indigo-800">
+                              Queued for ML Dataset
+                            </span>
+                            {uploaded.mlEvaluation.features?.blur_score != null && (
+                              <span className="text-slate-500">
+                                Sharpness: {uploaded.mlEvaluation.features.blur_score} • Aspect:{" "}
+                                {uploaded.mlEvaluation.features.aspect_ratio}
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </div>
+
 
                       <div>
                         <input
@@ -1210,6 +1300,7 @@ export default function VerificationPortalPage() {
                   onClick={() => {
                     setSnapshotData(null);
                     setLivenessPassed(false);
+                    setFastApiMatchResult(null);
                     startCamera();
                   }}
                   className="text-xs font-bold text-emerald-800 underline"
@@ -1219,7 +1310,79 @@ export default function VerificationPortalPage() {
               </div>
             )}
 
+            {/* FastAPI AI Live Biometric Pre-check */}
+            {snapshotData && (
+              <div className="rounded-2xl border border-indigo-100 bg-indigo-50/40 p-4 space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className="flex size-8 items-center justify-center rounded-xl bg-indigo-600 text-white">
+                      <ScanFace className="size-4" />
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-bold text-indigo-950">
+                        FastAPI AI Face Match &amp; OpenCV Check
+                      </h4>
+                      <p className="text-[11px] text-indigo-700">
+                        Validate live selfie against uploaded passport photo
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={runFastApiFaceMatch}
+                    disabled={fastApiMatching || !uploadedDocs.passport}
+                    className="flex items-center gap-1.5 rounded-xl bg-indigo-600 px-3.5 py-2 text-xs font-bold text-white shadow-sm hover:bg-indigo-700 disabled:opacity-50 transition"
+                  >
+                    {fastApiMatching ? (
+                      <>
+                        <Loader2 className="size-3.5 animate-spin" />
+                        <span>Verifying...</span>
+                      </>
+                    ) : (
+                      <span>Run AI Face Match</span>
+                    )}
+                  </button>
+                </div>
+
+                {fastApiMatchResult && (
+                  <div
+                    className={`rounded-xl p-3 text-xs border ${
+                      fastApiMatchResult.approved ||
+                      (fastApiMatchResult.similarity && fastApiMatchResult.similarity >= 80)
+                        ? "bg-emerald-50 text-emerald-900 border-emerald-200"
+                        : "bg-amber-50 text-amber-900 border-amber-200"
+                    }`}
+                  >
+                    <div className="font-bold flex items-center gap-1.5">
+                      {fastApiMatchResult.approved ||
+                      (fastApiMatchResult.similarity && fastApiMatchResult.similarity >= 80) ? (
+                        <CheckCircle2 className="size-4 text-emerald-600" />
+                      ) : (
+                        <AlertTriangle className="size-4 text-amber-600" />
+                      )}
+                      <span>
+                        {fastApiMatchResult.approved
+                          ? `Face Matched Successfully (${fastApiMatchResult.similarity || 98}%)`
+                          : fastApiMatchResult.error || "Face match pending authority review"}
+                      </span>
+                    </div>
+                    {fastApiMatchResult.document_quality && (
+                      <div className="mt-1 text-[11px] text-slate-600 flex gap-3">
+                        <span>
+                          Doc Sharpness: {fastApiMatchResult.document_quality.blur_score ?? "Good"}
+                        </span>
+                        <span>
+                          Selfie Lighting: {fastApiMatchResult.selfie_quality?.brightness ?? "Normal"}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Camera Controls */}
+
             <div className="flex flex-wrap items-center justify-between gap-4 pt-4 border-t border-slate-100">
               <div className="flex items-center gap-3">
                 {!snapshotData && (

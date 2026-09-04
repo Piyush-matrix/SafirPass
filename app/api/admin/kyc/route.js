@@ -2,8 +2,10 @@ import { NextResponse } from "next/server";
 import { verifyJwt } from "@/lib/jwt";
 import { getAdminApplicationsQueue, processAdminKycDecision } from "@/lib/db/kyc-store";
 import { getAuthorityAuditLogs } from "@/lib/db/mongodb";
+import { labelDocumentSamples } from "@/lib/fastapi";
 
 export async function GET(request) {
+
   try {
     const cookieHeader = request.cookies.get("safirpass_session");
     const token = cookieHeader?.value;
@@ -58,12 +60,19 @@ export async function POST(request) {
       failedDocs,
     });
 
+    // Update ground truth training labels in FastAPI PostgreSQL dataset
+    labelDocumentSamples({
+      userId,
+      isAuthentic: decision === "verified",
+      adminNotes: notes || `Authority decision: ${decision}`,
+    }).catch((err) => console.warn("[ML Ground-Truth Labeling]", err.message));
 
     return NextResponse.json({
       success: true,
       message: `Application successfully marked as ${decision}.`,
       application: updated,
     });
+
   } catch (err) {
     return NextResponse.json(
       { error: err.message || "Failed to update KYC status." },

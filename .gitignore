@@ -44,16 +44,18 @@ next-env.d.ts
 
 /global-tourist-id
 
-# Python backend
+# Python services
 /.venv/
+/python-services/.venv/
 /backend/.venv/
 **/__pycache__/
 **/*.py[cod]
-/backend/.pytest_cache/
-/backend/data/
-/backend/*.egg-info/
+/python-services/.pytest_cache/
+/python-services/data/
+/python-services/*.egg-info/
 *.db
-/backend/tourist_safety.db
+/python-services/tourist_safety.db
 /tourist_safety.db
+
 tmp/
 /tmp/
