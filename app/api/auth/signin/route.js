@@ -1,32 +1,55 @@
 import { NextResponse } from "next/server";
-import { upsertProfile, getProfileById } from "@/lib/db/postgres";
+import { getProfileByEmail, upsertProfile } from "@/lib/db/postgres";
 import { signJwt } from "@/lib/jwt";
-import { toValidUuid } from "@/lib/uuid";
+import { verifyPassword, hashPassword } from "@/lib/password";
 
 export async function POST(request) {
   try {
     const { email, password } = await request.json();
 
     if (!email || !password) {
-      return NextResponse.json({ error: "Email and password required" }, { status: 400 });
+      return NextResponse.json({ error: "Email and password are required." }, { status: 400 });
     }
 
-    const userId = toValidUuid(email);
-    const existingProfile = await getProfileById(userId);
-    const fullName = existingProfile?.full_name || email.split("@")[0];
+    const cleanEmail = email.trim().toLowerCase();
+    const existingProfile = await getProfileByEmail(cleanEmail);
 
-    const profile = await upsertProfile({
-      id: userId,
-      email,
-      full_name: fullName,
-    });
+    if (!existingProfile) {
+      return NextResponse.json(
+        { error: "No account found with this email. Please register an account first." },
+        { status: 401 }
+      );
+    }
+
+    // Verify password against stored PBKDF2 hash
+    if (existingProfile.password_hash) {
+      const isValid = await verifyPassword(password, existingProfile.password_hash);
+      if (!isValid) {
+        return NextResponse.json({ error: "Invalid email or password." }, { status: 401 });
+      }
+    } else {
+      // Graceful upgrade for legacy records: save password hash on first verified login
+      const upgradedHash = await hashPassword(password);
+      await upsertProfile({
+        id: existingProfile.id,
+        email: cleanEmail,
+        full_name: existingProfile.full_name,
+        password_hash: upgradedHash,
+        role: existingProfile.role || "tourist",
+      });
+    }
+
+    const role = existingProfile.role || "tourist";
+    const fullName = existingProfile.full_name || cleanEmail.split("@")[0];
 
     const sessionPayload = {
-      id: userId,
-      email,
+      id: existingProfile.id,
+      email: cleanEmail,
+      role,
       user_metadata: {
         full_name: fullName,
-        avatar_url: profile?.avatar_url || null,
+        avatar_url: existingProfile.avatar_url || null,
+        role,
       },
     };
 
@@ -46,3 +69,4 @@ export async function POST(request) {
     return NextResponse.json({ error: err.message || "Sign in failed" }, { status: 500 });
   }
 }
+

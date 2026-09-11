@@ -9,6 +9,13 @@ export async function POST(request) {
     const token = cookieHeader?.value;
     const session = token ? await verifyJwt(token) : null;
 
+    if (!session || !session.id) {
+      return NextResponse.json(
+        { error: "Unauthorized. Please sign in to submit e-KYC." },
+        { status: 401 }
+      );
+    }
+
     const body = await request.json();
     const { profile, documents, biometrics } = body;
 
@@ -19,7 +26,8 @@ export async function POST(request) {
       );
     }
 
-    const userId = session?.id || toValidUuid(profile.email || `tourist-${Date.now()}`);
+    const userId = session.id;
+
 
     const result = await submitTouristKyc({
       userId,

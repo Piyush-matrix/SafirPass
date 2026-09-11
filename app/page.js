@@ -87,12 +87,12 @@ export default function HomePage() {
   return (
     <div className="bg-white">
       {/* Hero Section */}
-      <section className="relative overflow-hidden border-b border-slate-200 bg-gradient-to-b from-blue-50/60 via-white to-white py-16 md:py-24">
+      <section className="relative overflow-hidden border-b border-slate-200 bg-gradient-to-b from-blue-50/60 via-white to-white py-12 md:py-16">
         <div className="container-page relative z-10">
           <div className="grid gap-12 lg:grid-cols-2 lg:items-center">
             <div className="space-y-6">
               <div className="inline-flex items-center gap-2 rounded-full border border-blue-200 bg-blue-50 px-3.5 py-1.5 text-xs font-semibold text-blue-700">
-                <Sparkles className="size-3.5 text-blue-600" />
+                {/* <Sparkles className="size-3.5 text-blue-600" /> */}
                 <span>
                   Republic of India Smart Tourism &amp; Safety Initiative
                 </span>

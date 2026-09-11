@@ -5,7 +5,7 @@ import {
   getAllActiveSosAlerts,
   updateSosAlertStatus,
 } from "@/lib/db/postgres";
-import { getSession, verifyJwt } from "@/lib/jwt";
+import { getSession } from "@/lib/jwt";
 import { toValidUuid } from "@/lib/uuid";
 
 export async function GET(request) {
@@ -14,13 +14,19 @@ export async function GET(request) {
     const mode = searchParams.get("mode");
     const session = await getSession(request);
 
-    if (mode === "all" || session?.role === "admin") {
-      const alerts = await getAllActiveSosAlerts();
-      return NextResponse.json({ success: true, alerts });
+    if (!session?.id) {
+      return NextResponse.json({ error: "Unauthorized. Please sign in." }, { status: 401 });
     }
 
-    if (!session?.id) {
-      return NextResponse.json({ success: true, alerts: [] });
+    if (mode === "all" || session.role === "admin") {
+      if (session.role !== "admin") {
+        return NextResponse.json(
+          { error: "Forbidden. Administrative access required for incident overview." },
+          { status: 403 }
+        );
+      }
+      const alerts = await getAllActiveSosAlerts();
+      return NextResponse.json({ success: true, alerts });
     }
 
     const alerts = await getSosAlertsByUserId(session.id);
@@ -62,6 +68,14 @@ export async function POST(request) {
 
 export async function PATCH(request) {
   try {
+    const session = await getSession(request);
+    if (!session || session.role !== "admin") {
+      return NextResponse.json(
+        { error: "Forbidden. Emergency responder dispatch permissions required." },
+        { status: 403 }
+      );
+    }
+
     const body = await request.json();
     const { id, status, responder } = body;
 
