@@ -439,25 +439,27 @@ export default function HomePage() {
       </section>
 
       {/* Call To Action */}
-      <section className="bg-slate-900 text-white py-16">
-        <div className="container-page flex flex-col md:flex-row items-start md:items-center justify-between gap-8">
-          <div className="max-w-2xl space-y-3">
-            <h2 className="font-serif text-3xl font-bold text-white">
-              Ready to create your Digital Tourist ID?
-            </h2>
-            <p className="text-slate-300 text-sm leading-relaxed">
-              Sign in with Google, complete e-KYC once, and travel across
-              trusted services without ever exposing raw passport documents
-              again.
-            </p>
+      <section className="py-12 md:py-16">
+        <div className="container-page">
+          <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-slate-900 via-slate-800 to-blue-950 p-8 sm:p-12 text-white shadow-xl border border-slate-800 flex flex-col md:flex-row items-start md:items-center justify-between gap-8">
+            <div className="max-w-2xl space-y-3 relative z-10">
+              <h2 className="font-serif text-2xl sm:text-3xl font-bold text-white">
+                Ready to create your Digital Tourist ID?
+              </h2>
+              <p className="text-slate-300 text-sm leading-relaxed">
+                Sign in with Google, complete e-KYC once, and travel across
+                trusted services without ever exposing raw passport documents
+                again.
+              </p>
+            </div>
+            <Link
+              href="/auth"
+              className="relative z-10 flex items-center gap-2 rounded-xl bg-blue-600 px-6 py-3.5 text-base font-bold text-white shadow-lg hover:bg-blue-500 transition-all hover:shadow-blue-500/25 shrink-0"
+            >
+              <span>Get Started Now</span>
+              <ArrowRight className="size-5" />
+            </Link>
           </div>
-          <Link
-            href="/auth"
-            className="flex items-center gap-2 rounded-xl bg-blue-600 px-6 py-3.5 text-base font-bold text-white shadow-lg hover:bg-blue-500 transition-all hover:shadow-xl shrink-0"
-          >
-            <span>Get Started Now</span>
-            <ArrowRight className="size-5" />
-          </Link>
         </div>
       </section>
     </div>
