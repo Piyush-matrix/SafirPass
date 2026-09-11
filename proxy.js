@@ -2,9 +2,9 @@ import { NextResponse } from "next/server";
 import { verifyJwt } from "./lib/jwt";
 
 /**
- * Next.js Edge Middleware for Route Authentication & Role-Based Authorization
+ * Next.js Proxy for Route Authentication & Role-Based Authorization
  */
-export async function middleware(request) {
+export async function proxy(request) {
   const { pathname } = request.nextUrl;
   const token = request.cookies.get("safirpass_session")?.value;
   const session = token ? await verifyJwt(token) : null;
