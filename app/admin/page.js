@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -73,9 +73,9 @@ export default function AdminPortalPage() {
   const [rotationAngle, setRotationAngle] = useState(0);
   const [highContrast, setHighContrast] = useState(false);
 
-  const loadData = async () => {
+  const loadData = useCallback(async (isManual = false) => {
     try {
-      setRefreshing(true);
+      if (isManual) setRefreshing(true);
       const res = await fetch("/api/admin/kyc");
       const data = await res.json();
       if (data?.applications) {
@@ -90,16 +90,30 @@ export default function AdminPortalPage() {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
+    let ignore = false;
     if (!authLoading) {
       if (!user) {
         router.push("/auth");
       } else {
-        loadData();
+        fetch("/api/admin/kyc")
+          .then((res) => res.json())
+          .then((data) => {
+            if (ignore) return;
+            if (data?.applications) setApplications(data.applications);
+            if (data?.auditLogs) setAuditLogs(data.auditLogs);
+          })
+          .catch((err) => console.warn("Failed to load admin applications:", err))
+          .finally(() => {
+            if (!ignore) setLoading(false);
+          });
       }
     }
+    return () => {
+      ignore = true;
+    };
   }, [user, authLoading, router]);
 
   // Open Detailed Application Inspector
@@ -268,138 +282,143 @@ export default function AdminPortalPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 selection:bg-blue-600 selection:text-white">
-      {/* Top Authority Header Bar */}
-      <header className="sticky top-0 z-40 border-b border-slate-800/80 bg-slate-900/90 backdrop-blur-xl">
-        <div className="container-page flex h-16 items-center justify-between px-4 md:px-8">
-          <div className="flex items-center gap-3">
-            <div className="flex size-10 items-center justify-center rounded-xl bg-blue-600/20 text-blue-400 border border-blue-500/30 shadow-inner">
-              <ShieldCheck className="size-6" />
+    <div className="min-h-screen bg-slate-50 py-8 md:py-10 text-slate-900 selection:bg-blue-100 selection:text-blue-900">
+      <div className="container-page space-y-8">
+        {/* Authority Header Card */}
+        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-6 md:p-8 shadow-sm">
+          <div className="space-y-1.5">
+            <div className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700 border border-blue-200">
+              <ShieldCheck className="size-3.5 text-blue-600" />
+              <span>Immigration &amp; e-KYC Authority Grid</span>
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="font-serif text-lg font-bold tracking-tight text-white">
-                  SafirPass Authority Portal
-                </span>
-                <span className="rounded-full bg-blue-500/10 px-2.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wider text-blue-400 border border-blue-500/20">
-                  Immigration &amp; e-KYC Grid
-                </span>
-              </div>
-              <p className="text-[11px] text-slate-400 hidden sm:block">
-                Ministry of Tourism &amp; Home Affairs • Government of India
-              </p>
-            </div>
+            <h1 className="font-serif text-2xl md:text-3xl font-extrabold text-slate-900">
+              SafirPass Authority Command Portal
+            </h1>
+            <p className="text-xs text-slate-500">
+              Ministry of Tourism &amp; Home Affairs • Government of India • Logged in as:{" "}
+              <span className="font-semibold text-slate-800 font-mono">{user?.email}</span>
+            </p>
           </div>
 
-          {/* Top Right Actions */}
-          <div className="flex items-center gap-3">
+          {/* Top Quick Actions */}
+          <div className="flex items-center gap-2.5">
             <button
-              onClick={loadData}
+              onClick={() => loadData(true)}
               disabled={refreshing}
-              className="flex items-center gap-1.5 rounded-xl border border-slate-700/80 bg-slate-800/80 px-3 py-2 text-xs font-semibold text-slate-300 hover:bg-slate-700 hover:text-white transition-all shadow-sm"
+              className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-xs font-bold text-slate-700 shadow-xs hover:bg-slate-50 hover:text-slate-900 transition-all"
               title="Refresh Queue"
             >
-              <RefreshCw className={`size-3.5 ${refreshing ? "animate-spin" : ""}`} />
-              <span className="hidden sm:inline">Refresh</span>
+              <RefreshCw className={`size-3.5 ${refreshing ? "animate-spin text-blue-600" : ""}`} />
+              <span>Refresh</span>
             </button>
 
             <button
               onClick={() => signOut()}
-              className="flex items-center gap-1.5 rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs font-bold text-red-300 hover:bg-red-500/20 transition-colors"
+              className="flex items-center gap-1.5 rounded-xl border border-red-200 bg-red-50 px-3.5 py-2.5 text-xs font-bold text-red-700 hover:bg-red-100 transition-colors"
             >
               <LogOut className="size-3.5" />
-              <span className="hidden sm:inline">Sign Out</span>
+              <span>Sign Out</span>
             </button>
           </div>
         </div>
 
-        {/* Tab Navigation */}
-        <div className="container-page px-4 md:px-8 border-t border-slate-800/60 flex items-center gap-2 overflow-x-auto text-xs font-bold">
+        {/* Tab Navigation Pill Bar */}
+        <div className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-sm overflow-x-auto text-xs font-bold">
           <button
             onClick={() => setActiveTab("queue")}
-            className={`flex items-center gap-2 py-3 px-3.5 border-b-2 transition-all ${
+            className={`flex items-center gap-2 rounded-xl py-2.5 px-4 transition-all ${
               activeTab === "queue"
-                ? "border-blue-500 text-blue-400 font-extrabold"
-                : "border-transparent text-slate-400 hover:text-slate-200"
+                ? "bg-blue-600 text-white shadow-xs font-extrabold"
+                : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
             }`}
           >
-            <Users className="size-4" /> Verification Queue
-            <span className="rounded-full bg-slate-800 px-2 py-0.5 text-[10px] text-slate-300">
+            <Users className="size-4" />
+            <span>Verification Queue</span>
+            <span
+              className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                activeTab === "queue"
+                  ? "bg-blue-700/80 text-white"
+                  : "bg-slate-100 text-slate-600"
+              }`}
+            >
               {stats.total}
             </span>
           </button>
 
           <button
             onClick={() => setActiveTab("audit")}
-            className={`flex items-center gap-2 py-3 px-3.5 border-b-2 transition-all ${
+            className={`flex items-center gap-2 rounded-xl py-2.5 px-4 transition-all ${
               activeTab === "audit"
-                ? "border-blue-500 text-blue-400 font-extrabold"
-                : "border-transparent text-slate-400 hover:text-slate-200"
+                ? "bg-blue-600 text-white shadow-xs font-extrabold"
+                : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
             }`}
           >
-            <History className="size-4" /> Authority Audit Stream
-            <span className="rounded-full bg-slate-800 px-2 py-0.5 text-[10px] text-slate-300">
+            <History className="size-4" />
+            <span>Authority Audit Stream</span>
+            <span
+              className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                activeTab === "audit"
+                  ? "bg-blue-700/80 text-white"
+                  : "bg-slate-100 text-slate-600"
+              }`}
+            >
               {auditLogs.length}
             </span>
           </button>
 
           <button
             onClick={() => setActiveTab("system")}
-            className={`flex items-center gap-2 py-3 px-3.5 border-b-2 transition-all ${
+            className={`flex items-center gap-2 rounded-xl py-2.5 px-4 transition-all ${
               activeTab === "system"
-                ? "border-blue-500 text-blue-400 font-extrabold"
-                : "border-transparent text-slate-400 hover:text-slate-200"
+                ? "bg-blue-600 text-white shadow-xs font-extrabold"
+                : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
             }`}
           >
-            <Database className="size-4" /> System &amp; Dual Database Health
+            <Database className="size-4" />
+            <span>System &amp; Dual Database Health</span>
           </button>
         </div>
-      </header>
 
-      {/* Main Admin Content Container */}
-      <main className="container-page px-4 md:px-8 py-8 space-y-8">
-        {/* ========================================================================= */}
-        {/* TAB 1: VERIFICATION QUEUE */}
-        {/* ========================================================================= */}
+        {/* Tab 1: Verification Queue */}
         {activeTab === "queue" && (
           <div className="space-y-6 animate-in fade-in">
             {/* Metric Summary Cards */}
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5 space-y-2">
-                <span className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-                  <Users className="size-4 text-blue-400" /> Total Applications
+              <div className="rounded-2xl border border-slate-200 bg-white p-5 space-y-2 shadow-sm">
+                <span className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                  <Users className="size-4 text-blue-600" /> Total Applications
                 </span>
-                <p className="font-serif text-3xl font-extrabold text-white">{stats.total}</p>
+                <p className="font-serif text-3xl font-extrabold text-slate-900">{stats.total}</p>
                 <p className="text-[11px] text-slate-500">Tourist submissions across all nations</p>
               </div>
 
-              <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-5 space-y-2">
-                <span className="text-xs font-bold uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
-                  <Clock className="size-4 animate-pulse" /> Pending Review
+              <div className="rounded-2xl border border-amber-200 bg-amber-50/70 p-5 space-y-2 shadow-sm">
+                <span className="text-xs font-bold uppercase tracking-wider text-amber-800 flex items-center gap-1.5">
+                  <Clock className="size-4 animate-pulse text-amber-600" /> Pending Review
                 </span>
-                <p className="font-serif text-3xl font-extrabold text-amber-300">{stats.pending}</p>
-                <p className="text-[11px] text-amber-400/80">Turnaround within 24 hours</p>
+                <p className="font-serif text-3xl font-extrabold text-amber-900">{stats.pending}</p>
+                <p className="text-[11px] text-amber-700">Turnaround within 24 hours</p>
               </div>
 
-              <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-5 space-y-2">
-                <span className="text-xs font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
-                  <CheckCircle2 className="size-4" /> Verified Active
+              <div className="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-5 space-y-2 shadow-sm">
+                <span className="text-xs font-bold uppercase tracking-wider text-emerald-800 flex items-center gap-1.5">
+                  <CheckCircle2 className="size-4 text-emerald-600" /> Verified Active
                 </span>
-                <p className="font-serif text-3xl font-extrabold text-emerald-300">{stats.verified}</p>
-                <p className="text-[11px] text-emerald-400/80">Digital Tourist IDs certified</p>
+                <p className="font-serif text-3xl font-extrabold text-emerald-900">{stats.verified}</p>
+                <p className="text-[11px] text-emerald-700">Digital Tourist IDs certified</p>
               </div>
 
-              <div className="rounded-2xl border border-red-500/30 bg-red-500/10 p-5 space-y-2">
-                <span className="text-xs font-bold uppercase tracking-wider text-red-400 flex items-center gap-1.5">
-                  <XCircle className="size-4" /> Rejected / Flagged
+              <div className="rounded-2xl border border-red-200 bg-red-50/70 p-5 space-y-2 shadow-sm">
+                <span className="text-xs font-bold uppercase tracking-wider text-red-800 flex items-center gap-1.5">
+                  <XCircle className="size-4 text-red-600" /> Rejected / Flagged
                 </span>
-                <p className="font-serif text-3xl font-extrabold text-red-300">{stats.rejected}</p>
-                <p className="text-[11px] text-red-400/80">Flagged with resubmission feedback</p>
+                <p className="font-serif text-3xl font-extrabold text-red-900">{stats.rejected}</p>
+                <p className="text-[11px] text-red-700">Flagged with resubmission feedback</p>
               </div>
             </div>
 
             {/* Search & Multi-Filter Bar */}
-            <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 rounded-2xl border border-slate-800 bg-slate-900 p-4">
+            <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
               <div className="relative flex-1">
                 <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 size-4 text-slate-400" />
                 <input
@@ -407,7 +426,7 @@ export default function AdminPortalPage() {
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Search by tourist name, passport no, tourist ID, or country..."
-                  className="w-full rounded-xl border border-slate-700 bg-slate-950 pl-10 pr-4 py-2.5 text-xs text-white placeholder-slate-500 focus:border-blue-500 focus:outline-none"
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 pl-10 pr-4 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:bg-white focus:border-blue-600 focus:ring-2 focus:ring-blue-100 focus:outline-none transition-all"
                 />
               </div>
 
@@ -415,7 +434,7 @@ export default function AdminPortalPage() {
                 <select
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value)}
-                  className="rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-xs font-semibold text-slate-300 focus:border-blue-500 focus:outline-none"
+                  className="rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-xs font-semibold text-slate-700 focus:bg-white focus:border-blue-600 focus:outline-none shadow-xs transition-all"
                 >
                   <option value="all">All Statuses</option>
                   <option value="under_review">Pending Review (Under 24h)</option>
@@ -427,7 +446,7 @@ export default function AdminPortalPage() {
                   <select
                     value={selectedNationality}
                     onChange={(e) => setSelectedNationality(e.target.value)}
-                    className="rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-xs font-semibold text-slate-300 focus:border-blue-500 focus:outline-none"
+                    className="rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-xs font-semibold text-slate-700 focus:bg-white focus:border-blue-600 focus:outline-none shadow-xs transition-all"
                   >
                     <option value="all">All Countries</option>
                     {availableNationalities.map((nat) => (
@@ -441,10 +460,10 @@ export default function AdminPortalPage() {
             </div>
 
             {/* Application Queue Table */}
-            <div className="overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/60 shadow-xl">
+            <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs">
-                  <thead className="border-b border-slate-800 bg-slate-900 font-bold uppercase tracking-wider text-slate-400">
+                  <thead className="border-b border-slate-200 bg-slate-50/90 font-bold uppercase tracking-wider text-slate-600 text-[11px]">
                     <tr>
                       <th className="px-6 py-4">Tourist &amp; Identification</th>
                       <th className="px-6 py-4">Nationality</th>
@@ -456,7 +475,7 @@ export default function AdminPortalPage() {
                     </tr>
                   </thead>
 
-                  <tbody className="divide-y divide-slate-800/80 text-slate-300">
+                  <tbody className="divide-y divide-slate-100 text-slate-700">
                     {filteredApplications.map((app) => {
                       const docCount = Array.isArray(app.documents) ? app.documents.length : 0;
                       const docFailures = Array.isArray(app.documents)
@@ -466,7 +485,7 @@ export default function AdminPortalPage() {
                       return (
                         <tr
                           key={app.id || app.user_id}
-                          className="hover:bg-slate-800/40 transition-colors"
+                          className="hover:bg-blue-50/30 transition-colors"
                         >
                           <td className="px-6 py-4">
                             <div className="flex items-center gap-3">
@@ -474,39 +493,39 @@ export default function AdminPortalPage() {
                                 <img
                                   src={app.biometrics.face_snapshot}
                                   alt="Face Snapshot"
-                                  className="size-10 rounded-xl object-cover border border-slate-700 shadow-sm"
+                                  className="size-10 rounded-xl object-cover border border-slate-200 shadow-xs"
                                 />
                               ) : (
-                                <div className="flex size-10 items-center justify-center rounded-xl bg-blue-600/20 text-blue-400 font-bold">
+                                <div className="flex size-10 items-center justify-center rounded-xl bg-blue-50 text-blue-700 border border-blue-200 font-bold">
                                   {app.full_name ? app.full_name[0] : "T"}
                                 </div>
                               )}
                               <div>
-                                <p className="font-bold text-white text-sm">{app.full_name}</p>
-                                <p className="font-mono text-[11px] text-slate-400">
+                                <p className="font-bold text-slate-900 text-sm">{app.full_name}</p>
+                                <p className="font-mono text-[11px] text-slate-500">
                                   {app.passport_number} •{" "}
-                                  <span className="text-blue-400">{app.tourist_id}</span>
+                                  <span className="text-blue-600 font-semibold">{app.tourist_id}</span>
                                 </p>
                               </div>
                             </div>
                           </td>
 
-                          <td className="px-6 py-4 font-semibold text-slate-200">
+                          <td className="px-6 py-4 font-semibold text-slate-800">
                             {app.nationality}
                           </td>
 
                           <td className="px-6 py-4">
-                            <span className="rounded-md bg-slate-800 px-2 py-1 text-[11px] font-medium text-slate-300 border border-slate-700">
+                            <span className="rounded-md bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-700 border border-slate-200">
                               {app.visa_type}
                             </span>
                           </td>
 
                           <td className="px-6 py-4">
                             <div className="flex items-center gap-1.5">
-                              <FileText className="size-4 text-blue-400" />
-                              <span className="font-medium text-slate-300">{docCount} Files</span>
+                              <FileText className="size-4 text-blue-600" />
+                              <span className="font-medium text-slate-700">{docCount} Files</span>
                               {docFailures > 0 && (
-                                <span className="rounded-full bg-red-500/20 px-1.5 py-0.2 text-[10px] font-bold text-red-400 border border-red-500/40">
+                                <span className="rounded-full bg-red-50 px-2 py-0.5 text-[10px] font-bold text-red-700 border border-red-200">
                                   {docFailures} Flagged
                                 </span>
                               )}
@@ -515,8 +534,8 @@ export default function AdminPortalPage() {
 
                           <td className="px-6 py-4">
                             <div className="flex items-center gap-1.5">
-                              <ScanFace className="size-4 text-emerald-400" />
-                              <span className="font-bold text-emerald-400">
+                              <ScanFace className="size-4 text-emerald-600" />
+                              <span className="font-bold text-emerald-700">
                                 {((app.biometrics?.liveness_score ?? app.liveness_score ?? 0) * 100).toFixed(0)}%
                                 Match
                               </span>
@@ -525,15 +544,15 @@ export default function AdminPortalPage() {
 
                           <td className="px-6 py-4">
                             {app.status === "verified" ? (
-                              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 px-2.5 py-1 text-[11px] font-bold text-emerald-300">
+                              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 border border-emerald-200 px-2.5 py-1 text-[11px] font-bold text-emerald-700">
                                 <CheckCircle2 className="size-3" /> Verified
                               </span>
                             ) : app.status === "rejected" ? (
-                              <span className="inline-flex items-center gap-1 rounded-full bg-red-500/10 border border-red-500/30 px-2.5 py-1 text-[11px] font-bold text-red-300">
+                              <span className="inline-flex items-center gap-1 rounded-full bg-red-50 border border-red-200 px-2.5 py-1 text-[11px] font-bold text-red-700">
                                 <XCircle className="size-3" /> Rejected
                               </span>
                             ) : (
-                              <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 border border-amber-500/30 px-2.5 py-1 text-[11px] font-bold text-amber-300">
+                              <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 border border-amber-200 px-2.5 py-1 text-[11px] font-bold text-amber-800">
                                 <Clock className="size-3" /> Under Review
                               </span>
                             )}
@@ -542,7 +561,7 @@ export default function AdminPortalPage() {
                           <td className="px-6 py-4 text-right">
                             <button
                               onClick={() => handleOpenReview(app)}
-                              className="inline-flex items-center gap-1 rounded-xl bg-blue-600 px-3.5 py-2 text-xs font-bold text-white shadow-md hover:bg-blue-500 transition-colors"
+                              className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-3.5 py-2 text-xs font-bold text-white shadow-xs hover:bg-blue-700 transition-all hover:shadow"
                             >
                               <Eye className="size-3.5" /> Inspect &amp; Verify
                             </button>
@@ -554,9 +573,9 @@ export default function AdminPortalPage() {
                     {filteredApplications.length === 0 && !loading && (
                       <tr>
                         <td colSpan={7} className="px-6 py-12 text-center text-slate-500">
-                          <ShieldCheck className="mx-auto size-10 text-slate-600 mb-2 opacity-50" />
-                          <p className="text-sm font-semibold">No applications found in queue</p>
-                          <p className="text-xs">
+                          <ShieldCheck className="mx-auto size-12 text-slate-300 mb-2" />
+                          <p className="text-sm font-bold text-slate-800">No applications found in queue</p>
+                          <p className="text-xs text-slate-500 mt-1">
                             New registrations and document submissions from tourists will appear here immediately.
                           </p>
                         </td>
@@ -569,25 +588,23 @@ export default function AdminPortalPage() {
           </div>
         )}
 
-        {/* ========================================================================= */}
-        {/* TAB 2: AUTHORITY AUDIT LOG STREAM */}
-        {/* ========================================================================= */}
+        {/* Tab 2: Authority Audit Stream */}
         {activeTab === "audit" && (
           <div className="space-y-6 animate-in fade-in">
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                  <History className="size-5 text-blue-400" /> Immutable Authority Audit Stream
+                <h3 className="text-xl font-serif font-bold text-slate-900 flex items-center gap-2">
+                  <History className="size-5 text-blue-600" /> Immutable Authority Audit Stream
                 </h3>
-                <p className="text-xs text-slate-400 mt-0.5">
+                <p className="text-xs text-slate-500 mt-1">
                   Real-time record of all officer verification actions, approvals, and document decisions stored in MongoDB Atlas.
                 </p>
               </div>
             </div>
 
-            <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-6 space-y-4">
+            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm space-y-4">
               {auditLogs.length > 0 ? (
-                <div className="divide-y divide-slate-800">
+                <div className="divide-y divide-slate-100">
                   {auditLogs.map((log, i) => (
                     <div key={i} className="py-3.5 flex items-start justify-between gap-4 text-xs">
                       <div className="space-y-1">
@@ -595,35 +612,35 @@ export default function AdminPortalPage() {
                           <span
                             className={`rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
                               log.action === "APPROVE_KYC"
-                                ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
-                                : "bg-red-500/20 text-red-300 border border-red-500/30"
+                                ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                                : "bg-red-50 text-red-700 border border-red-200"
                             }`}
                           >
                             {log.action}
                           </span>
-                          <span className="font-bold text-white">{log.admin_email}</span>
-                          <span className="text-slate-500">•</span>
-                          <span className="font-mono text-blue-400">Target: {log.target_user_id}</span>
+                          <span className="font-bold text-slate-900">{log.admin_email}</span>
+                          <span className="text-slate-300">•</span>
+                          <span className="font-mono text-blue-600 font-semibold">Target: {log.target_user_id}</span>
                         </div>
-                        <p className="text-slate-300">{log.admin_notes || log.decision}</p>
+                        <p className="text-slate-600">{log.admin_notes || log.decision}</p>
                         {Array.isArray(log.failed_documents) && log.failed_documents.length > 0 && (
-                          <p className="text-red-400 text-[11px]">
+                          <p className="text-red-600 font-semibold text-[11px]">
                             Failed Documents: {log.failed_documents.join(", ")}
                           </p>
                         )}
                       </div>
 
-                      <span className="font-mono text-[11px] text-slate-500 whitespace-nowrap">
+                      <span className="font-mono text-[11px] text-slate-400 whitespace-nowrap">
                         {new Date(log.timestamp).toLocaleString()}
                       </span>
                     </div>
                   ))}
                 </div>
               ) : (
-                <div className="py-10 text-center text-slate-500 space-y-2">
-                  <History className="mx-auto size-8 text-slate-600" />
-                  <p className="font-semibold text-sm">No Audit Logs Recorded Yet</p>
-                  <p className="text-xs">
+                <div className="py-12 text-center text-slate-500 space-y-2">
+                  <History className="mx-auto size-10 text-slate-300" />
+                  <p className="font-bold text-sm text-slate-800">No Audit Logs Recorded Yet</p>
+                  <p className="text-xs text-slate-500">
                     Officer approval and rejection decisions will be recorded here in MongoDB Atlas.
                   </p>
                 </div>
@@ -632,155 +649,157 @@ export default function AdminPortalPage() {
           </div>
         )}
 
-        {/* ========================================================================= */}
-        {/* TAB 3: SYSTEM & DUAL DATABASE HEALTH */}
-        {/* ========================================================================= */}
+        {/* Tab 3: System Architecture & Dual Database Health */}
         {activeTab === "system" && (
           <div className="space-y-6 animate-in fade-in">
             <div>
-              <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                <Database className="size-5 text-blue-400" /> System Architecture &amp; Database Health
+              <h3 className="text-xl font-serif font-bold text-slate-900 flex items-center gap-2">
+                <Database className="size-5 text-blue-600" /> System Architecture &amp; Database Health
               </h3>
-              <p className="text-xs text-slate-400 mt-0.5">
+              <p className="text-xs text-slate-500 mt-1">
                 Live connectivity status across PostgreSQL Neon Serverless, MongoDB Atlas Mongoose, and Cloudinary Media CDN.
               </p>
             </div>
 
             <div className="grid gap-6 sm:grid-cols-3">
-              <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-6 space-y-3">
+              <div className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-6 space-y-3 shadow-xs">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold uppercase tracking-wider text-emerald-400">
+                  <span className="text-xs font-bold uppercase tracking-wider text-emerald-800">
                     PostgreSQL (Neon Serverless)
                   </span>
-                  <span className="size-2.5 rounded-full bg-emerald-500 animate-ping" />
+                  <span className="relative flex size-2.5">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full size-2.5 bg-emerald-500"></span>
+                  </span>
                 </div>
-                <h4 className="text-base font-bold text-white">Relational Transaction Core</h4>
-                <p className="text-xs text-slate-300">
+                <h4 className="text-base font-bold text-slate-900">Relational Transaction Core</h4>
+                <p className="text-xs text-slate-600 leading-relaxed">
                   Manages profiles, kyc_applications lifecycle, tourist IDs, consent grants, and SOS alerts.
                 </p>
-                <div className="pt-2 border-t border-emerald-500/20 text-[11px] text-emerald-300 font-mono">
+                <div className="pt-3 border-t border-emerald-200 text-[11px] text-emerald-800 font-mono font-bold">
                   Status: Operational (Connected)
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-blue-500/30 bg-blue-500/10 p-6 space-y-3">
+              <div className="rounded-2xl border border-blue-200 bg-blue-50/50 p-6 space-y-3 shadow-xs">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold uppercase tracking-wider text-blue-400">
+                  <span className="text-xs font-bold uppercase tracking-wider text-blue-800">
                     MongoDB Atlas (Mongoose)
                   </span>
-                  <span className="size-2.5 rounded-full bg-blue-500 animate-ping" />
+                  <span className="relative flex size-2.5">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full size-2.5 bg-blue-500"></span>
+                  </span>
                 </div>
-                <h4 className="text-base font-bold text-white">Document &amp; Telemetry Vault</h4>
-                <p className="text-xs text-slate-300">
+                <h4 className="text-base font-bold text-slate-900">Document &amp; Telemetry Vault</h4>
+                <p className="text-xs text-slate-600 leading-relaxed">
                   Manages DocumentVault scans, BiometricFaceLog liveness data, AuthorityAuditLogs, and spatial breadcrumbs.
                 </p>
-                <div className="pt-2 border-t border-blue-500/20 text-[11px] text-blue-300 font-mono">
+                <div className="pt-3 border-t border-blue-200 text-[11px] text-blue-800 font-mono font-bold">
                   Status: Operational (Connected)
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-purple-500/30 bg-purple-500/10 p-6 space-y-3">
+              <div className="rounded-2xl border border-purple-200 bg-purple-50/50 p-6 space-y-3 shadow-xs">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold uppercase tracking-wider text-purple-400">
+                  <span className="text-xs font-bold uppercase tracking-wider text-purple-800">
                     Cloudinary CDN &amp; Blob
                   </span>
                   <span className="size-2.5 rounded-full bg-purple-500" />
                 </div>
-                <h4 className="text-base font-bold text-white">Media Asset Delivery</h4>
-                <p className="text-xs text-slate-300">
+                <h4 className="text-base font-bold text-slate-900">Media Asset Delivery</h4>
+                <p className="text-xs text-slate-600 leading-relaxed">
                   High-resolution passport scans, PDF grants, and live biometric capture frames.
                 </p>
-                <div className="pt-2 border-t border-purple-500/20 text-[11px] text-purple-300 font-mono">
+                <div className="pt-3 border-t border-purple-200 text-[11px] text-purple-800 font-mono font-bold">
                   Status: Ready with Base64 Fallback
                 </div>
               </div>
             </div>
           </div>
         )}
-      </main>
+      </div>
 
-      {/* ========================================================================= */}
-      {/* DETAILED INSPECTION & VERIFICATION MODAL */}
-      {/* ========================================================================= */}
+      {/* Detailed Inspection & Verification Modal */}
       {selectedApp && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-4 overflow-y-auto">
-          <div className="relative w-full max-w-5xl max-h-[92vh] overflow-y-auto rounded-3xl border border-slate-700 bg-slate-900 p-6 md:p-8 shadow-2xl text-slate-200 space-y-6">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 overflow-y-auto">
+          <div className="relative w-full max-w-5xl max-h-[92vh] overflow-y-auto rounded-3xl border border-slate-200 bg-white p-6 md:p-8 shadow-2xl text-slate-800 space-y-6">
             {/* Modal Header */}
-            <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-4">
               <div className="flex items-center gap-3">
-                <div className="flex size-12 items-center justify-center rounded-2xl bg-blue-600/20 text-blue-400 border border-blue-500/30 shadow-inner">
+                <div className="flex size-12 items-center justify-center rounded-2xl bg-blue-50 text-blue-600 border border-blue-200 shadow-sm">
                   <ShieldCheck className="size-7" />
                 </div>
                 <div>
-                  <h3 className="text-xl font-bold text-white">
+                  <h3 className="text-xl font-serif font-bold text-slate-900">
                     Authority Verification &amp; Document Inspector
                   </h3>
-                  <p className="text-xs text-slate-400">
+                  <p className="text-xs text-slate-500">
                     Application Ref:{" "}
-                    <span className="font-mono text-blue-400 font-bold">{selectedApp.tourist_id}</span> • Submitted by {selectedApp.full_name}
+                    <span className="font-mono text-blue-700 font-bold">{selectedApp.tourist_id}</span> • Submitted by {selectedApp.full_name}
                   </p>
                 </div>
               </div>
 
               <button
                 onClick={() => setSelectedApp(null)}
-                className="rounded-full p-2 text-slate-400 hover:bg-slate-800 hover:text-white transition-colors"
+                className="rounded-full p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition-colors"
               >
                 <X className="size-6" />
               </button>
             </div>
 
             {actionSuccessMsg && (
-              <div className="rounded-2xl border border-emerald-500/40 bg-emerald-500/10 p-4 text-xs font-bold text-emerald-300 flex items-center gap-2">
-                <CheckCircle2 className="size-4" /> {actionSuccessMsg}
+              <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-xs font-bold text-emerald-800 flex items-center gap-2">
+                <CheckCircle2 className="size-4 text-emerald-600" /> {actionSuccessMsg}
               </div>
             )}
 
             {/* Tourist Profile Summary Grid */}
             <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-4 text-xs">
-              <div className="rounded-xl border border-slate-800 bg-slate-950 p-3">
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
                 <span className="text-slate-500 font-semibold uppercase text-[10px]">Full Legal Name</span>
-                <p className="font-bold text-white text-sm mt-0.5">{selectedApp.full_name}</p>
+                <p className="font-bold text-slate-900 text-sm mt-0.5">{selectedApp.full_name}</p>
               </div>
-              <div className="rounded-xl border border-slate-800 bg-slate-950 p-3">
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
                 <span className="text-slate-500 font-semibold uppercase text-[10px]">Country / Nationality</span>
-                <p className="font-bold text-white text-sm mt-0.5">{selectedApp.nationality}</p>
+                <p className="font-bold text-slate-900 text-sm mt-0.5">{selectedApp.nationality}</p>
               </div>
-              <div className="rounded-xl border border-slate-800 bg-slate-950 p-3">
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
                 <span className="text-slate-500 font-semibold uppercase text-[10px]">Passport Number</span>
-                <p className="font-mono font-bold text-white mt-0.5">{selectedApp.passport_number}</p>
+                <p className="font-mono font-bold text-slate-900 mt-0.5">{selectedApp.passport_number}</p>
               </div>
-              <div className="rounded-xl border border-slate-800 bg-slate-950 p-3">
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
                 <span className="text-slate-500 font-semibold uppercase text-[10px]">Passport Expiry</span>
-                <p className="font-bold text-white mt-0.5">{selectedApp.passport_expiry || "—"}</p>
+                <p className="font-bold text-slate-900 mt-0.5">{selectedApp.passport_expiry || "—"}</p>
               </div>
 
-              <div className="rounded-xl border border-slate-800 bg-slate-950 p-3">
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
                 <span className="text-slate-500 font-semibold uppercase text-[10px]">Visa Reference</span>
-                <p className="font-mono font-bold text-white mt-0.5">{selectedApp.visa_number || "—"}</p>
+                <p className="font-mono font-bold text-slate-900 mt-0.5">{selectedApp.visa_number || "—"}</p>
               </div>
-              <div className="rounded-xl border border-slate-800 bg-slate-950 p-3">
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
                 <span className="text-slate-500 font-semibold uppercase text-[10px]">Visa Category</span>
-                <p className="font-semibold text-white mt-0.5">{selectedApp.visa_type}</p>
+                <p className="font-semibold text-slate-900 mt-0.5">{selectedApp.visa_type}</p>
               </div>
-              <div className="rounded-xl border border-slate-800 bg-slate-950 p-3">
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
                 <span className="text-slate-500 font-semibold uppercase text-[10px]">Stay Validity</span>
-                <p className="font-mono text-white mt-0.5">
+                <p className="font-mono text-slate-900 mt-0.5">
                   {selectedApp.entry_date && selectedApp.exit_date
                     ? `${selectedApp.entry_date} → ${selectedApp.exit_date}`
                     : "—"}
                 </p>
               </div>
-              <div className="rounded-xl border border-slate-800 bg-slate-950 p-3">
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
                 <span className="text-slate-500 font-semibold uppercase text-[10px]">Emergency Contact</span>
-                <p className="font-mono text-white mt-0.5">{selectedApp.emergency_contact || "—"}</p>
+                <p className="font-mono text-slate-900 mt-0.5">{selectedApp.emergency_contact || "—"}</p>
               </div>
             </div>
 
             {/* Biometric Live Face Verification & Liveness Meter */}
-            <div className="rounded-2xl border border-slate-800 bg-slate-950 p-5 space-y-4">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-2">
-                <ScanFace className="size-4 text-blue-400" /> Biometric Live Face Verification &amp; Anti-Spoof
+            <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-5 space-y-4">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-2">
+                <ScanFace className="size-4 text-blue-600" /> Biometric Live Face Verification &amp; Anti-Spoof
               </h4>
 
               <div className="flex flex-col sm:flex-row items-center gap-6">
@@ -789,7 +808,7 @@ export default function AdminPortalPage() {
                     <img
                       src={selectedApp.biometrics.face_snapshot}
                       alt="Biometric Reference"
-                      className="size-28 rounded-2xl object-cover border-2 border-blue-500/40 shadow-md cursor-pointer group-hover:opacity-90"
+                      className="size-28 rounded-2xl object-cover border-2 border-blue-200 shadow-sm cursor-pointer group-hover:opacity-95 transition-opacity"
                       onClick={() =>
                         setActiveViewerDoc({
                           url: selectedApp.biometrics.face_snapshot,
@@ -808,33 +827,34 @@ export default function AdminPortalPage() {
                           mimeType: "image/jpeg",
                         })
                       }
-                      className="absolute bottom-1 right-1 rounded-md bg-black/70 p-1 text-white hover:bg-black"
+                      className="absolute bottom-1.5 right-1.5 rounded-lg bg-slate-900/80 p-1.5 text-white hover:bg-slate-900 transition-colors shadow-xs"
+                      title="Inspect Biometric Image"
                     >
                       <Maximize2 className="size-3" />
                     </button>
                   </div>
                 ) : (
-                  <div className="size-28 rounded-2xl bg-slate-800 flex items-center justify-center text-slate-500 text-xs">
+                  <div className="size-28 rounded-2xl bg-slate-200 border border-slate-300 flex items-center justify-center text-slate-500 text-xs font-medium">
                     No Biometric Photo
                   </div>
                 )}
 
-                <div className="space-y-2 text-xs flex-1">
-                  <div className="flex items-center justify-between border-b border-slate-800 pb-1.5">
-                    <span className="text-slate-400">Biometric Liveness Score:</span>
-                    <span className="font-mono font-bold text-emerald-400">
+                <div className="space-y-2 text-xs flex-1 w-full">
+                  <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                    <span className="text-slate-600">Biometric Liveness Score:</span>
+                    <span className="font-mono font-bold text-emerald-700">
                       {((selectedApp.biometrics?.liveness_score ?? selectedApp.liveness_score ?? 0) * 100).toFixed(1)}% (Passed Threshold)
                     </span>
                   </div>
-                  <div className="flex items-center justify-between border-b border-slate-800 pb-1.5">
-                    <span className="text-slate-400">Anti-Spoofing Check:</span>
-                    <span className="font-bold text-emerald-400">
+                  <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                    <span className="text-slate-600">Anti-Spoofing Check:</span>
+                    <span className="font-bold text-emerald-700">
                       Confirmed (Live Video Stream Frame)
                     </span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-slate-400">Cloud Storage / Vault:</span>
-                    <span className="font-mono text-slate-300">
+                    <span className="text-slate-600">Cloud Storage / Vault:</span>
+                    <span className="font-mono text-slate-700">
                       MongoDB Atlas • Vault Secured
                     </span>
                   </div>
@@ -843,11 +863,11 @@ export default function AdminPortalPage() {
             </div>
 
             {/* Uploaded Documents Gallery & Individual Verification Checks */}
-            <div className="rounded-2xl border border-slate-800 bg-slate-950 p-5 space-y-4">
+            <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-5 space-y-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-2">
-                    <FileText className="size-4 text-blue-400" /> Uploaded Document Vault &amp; Verification Checks
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-2">
+                    <FileText className="size-4 text-blue-600" /> Uploaded Document Vault &amp; Verification Checks
                   </h4>
                   <p className="text-[11px] text-slate-500 mt-0.5">
                     Click any document to inspect full-size image/PDF in forensic lightbox.
@@ -855,11 +875,11 @@ export default function AdminPortalPage() {
                 </div>
 
                 <div className="flex items-center gap-2 text-xs">
-                  <span className="rounded-full bg-emerald-500/20 px-2.5 py-0.5 font-bold text-emerald-300 border border-emerald-500/30">
+                  <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 font-bold text-emerald-700 border border-emerald-200">
                     {verifiedCount} Verified
                   </span>
                   {failedCount > 0 && (
-                    <span className="rounded-full bg-red-500/20 px-2.5 py-0.5 font-bold text-red-300 border border-red-500/30">
+                    <span className="rounded-full bg-red-50 px-2.5 py-0.5 font-bold text-red-700 border border-red-200">
                       {failedCount} Failed
                     </span>
                   )}
@@ -882,19 +902,19 @@ export default function AdminPortalPage() {
                         key={doc.doc_type || idx}
                         className={`rounded-2xl border p-4 space-y-3 transition-all ${
                           isDocVerified
-                            ? "border-emerald-500/40 bg-emerald-950/20"
+                            ? "border-emerald-300 bg-emerald-50/50 shadow-xs"
                             : isDocFailed
-                            ? "border-red-500/40 bg-red-950/20"
-                            : "border-slate-800 bg-slate-900"
+                            ? "border-red-300 bg-red-50/50 shadow-xs"
+                            : "border-slate-200 bg-white shadow-xs"
                         }`}
                       >
                         {/* Doc Top Bar */}
                         <div className="flex items-start justify-between gap-2">
                           <div>
-                            <span className="text-xs font-bold text-white">
+                            <span className="text-xs font-bold text-slate-900">
                               {getDocLabel(doc.doc_type)}
                             </span>
-                            <p className="text-[11px] font-mono text-slate-400 mt-0.5">
+                            <p className="text-[11px] font-mono text-slate-500 mt-0.5">
                               {doc.file_name} • {doc.file_size}
                             </p>
                           </div>
@@ -902,10 +922,10 @@ export default function AdminPortalPage() {
                           <span
                             className={`rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
                               isDocVerified
-                                ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
+                                ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
                                 : isDocFailed
-                                ? "bg-red-500/20 text-red-300 border border-red-500/30"
-                                : "bg-slate-800 text-slate-400 border border-slate-700"
+                                ? "bg-red-100 text-red-800 border border-red-200"
+                                : "bg-slate-100 text-slate-600 border border-slate-200"
                             }`}
                           >
                             {docState.status}
@@ -922,7 +942,7 @@ export default function AdminPortalPage() {
                               mimeType: doc.mime_type,
                             })
                           }
-                          className="relative group cursor-pointer overflow-hidden rounded-xl border border-slate-800 bg-black/60 h-36 flex items-center justify-center"
+                          className="relative group cursor-pointer overflow-hidden rounded-xl border border-slate-200 bg-slate-100 h-36 flex items-center justify-center"
                         >
                           {docUrl ? (
                             <img
@@ -931,10 +951,10 @@ export default function AdminPortalPage() {
                               className="size-full object-contain group-hover:scale-105 transition-transform"
                             />
                           ) : (
-                            <FileText className="size-12 text-slate-600" />
+                            <FileText className="size-12 text-slate-400" />
                           )}
 
-                          <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 text-xs font-bold text-white">
+                          <div className="absolute inset-0 bg-slate-900/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 text-xs font-bold text-white">
                             <Eye className="size-4" /> Click to Inspect Full Resolution
                           </div>
                         </div>
@@ -947,10 +967,10 @@ export default function AdminPortalPage() {
                               onClick={() =>
                                 handleDocDecisionChange(doc.doc_type, "verified", "")
                               }
-                              className={`flex items-center justify-center gap-1 rounded-xl py-2 text-xs font-bold transition-colors ${
+                              className={`flex items-center justify-center gap-1 rounded-xl py-2 text-xs font-bold transition-all ${
                                 isDocVerified
-                                  ? "bg-emerald-600 text-white shadow-md"
-                                  : "bg-slate-800 text-slate-300 hover:bg-emerald-600/30 hover:text-emerald-300 border border-slate-700"
+                                  ? "bg-emerald-600 text-white shadow-xs"
+                                  : "bg-slate-100 text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 border border-slate-200"
                               }`}
                             >
                               <Check className="size-3.5" /> Approve Doc
@@ -965,10 +985,10 @@ export default function AdminPortalPage() {
                                   docState.failureReason || "Blurry or unreadable document scan"
                                 )
                               }
-                              className={`flex items-center justify-center gap-1 rounded-xl py-2 text-xs font-bold transition-colors ${
+                              className={`flex items-center justify-center gap-1 rounded-xl py-2 text-xs font-bold transition-all ${
                                 isDocFailed
-                                  ? "bg-red-600 text-white shadow-md"
-                                  : "bg-slate-800 text-slate-300 hover:bg-red-600/30 hover:text-red-300 border border-slate-700"
+                                  ? "bg-red-600 text-white shadow-xs"
+                                  : "bg-slate-100 text-slate-700 hover:bg-red-50 hover:text-red-700 border border-slate-200"
                               }`}
                             >
                               <X className="size-3.5" /> Flag Issue
@@ -978,7 +998,7 @@ export default function AdminPortalPage() {
                           {/* Failure Reason Input if Marked Failed */}
                           {isDocFailed && (
                             <div className="space-y-1 pt-1 animate-in fade-in">
-                              <label className="text-[10px] font-bold uppercase text-red-400">
+                              <label className="text-[10px] font-bold uppercase text-red-700">
                                 Failure Reason (Sent to tourist)
                               </label>
                               <select
@@ -990,7 +1010,7 @@ export default function AdminPortalPage() {
                                     e.target.value
                                   )
                                 }
-                                className="w-full rounded-xl border border-red-500/40 bg-slate-950 p-2 text-xs text-white focus:outline-none"
+                                className="w-full rounded-xl border border-red-300 bg-white p-2 text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-red-400"
                               >
                                 <option value="Blurry or unreadable document scan">
                                   Blurry or unreadable scan
@@ -1024,19 +1044,19 @@ export default function AdminPortalPage() {
 
             {/* Failure Warning Banner if any Document Failed */}
             {failedCount > 0 && (
-              <div className="rounded-2xl border border-red-500/50 bg-red-950/30 p-4 space-y-2 text-xs">
-                <div className="flex items-center gap-2 font-bold text-red-400">
+              <div className="rounded-2xl border border-red-200 bg-red-50 p-4 space-y-2 text-xs text-red-900">
+                <div className="flex items-center gap-2 font-bold text-red-700">
                   <AlertTriangle className="size-4" />
                   <span>{failedCount} Document(s) Flagged for Re-Upload</span>
                 </div>
-                <ul className="list-disc list-inside text-red-300 space-y-1">
+                <ul className="list-disc list-inside text-red-800 space-y-1">
                   {failedDocsList.map((f, i) => (
                     <li key={i}>
                       <span className="font-semibold">{getDocLabel(f.type)}:</span> {f.reason}
                     </li>
                   ))}
                 </ul>
-                <p className="text-slate-400 text-[11px]">
+                <p className="text-red-700 text-[11px]">
                   Rejecting this application will send this exact feedback to the tourist so they can re-upload clean documents.
                 </p>
               </div>
@@ -1044,7 +1064,7 @@ export default function AdminPortalPage() {
 
             {/* Authority Notes Input */}
             <div className="space-y-1.5">
-              <label className="text-xs font-bold uppercase tracking-wider text-slate-400">
+              <label className="text-xs font-bold uppercase tracking-wider text-slate-700">
                 Official Remarks &amp; Audit Log Remarks
               </label>
               <textarea
@@ -1052,14 +1072,14 @@ export default function AdminPortalPage() {
                 onChange={(e) => setDecisionNotes(e.target.value)}
                 placeholder="Enter official verification remarks or notes for audit trail..."
                 rows={2}
-                className="w-full rounded-2xl border border-slate-700 bg-slate-950 p-3 text-xs text-white placeholder-slate-500 focus:border-blue-500 focus:outline-none"
+                className="w-full rounded-2xl border border-slate-200 bg-slate-50 p-3.5 text-xs text-slate-900 placeholder-slate-400 focus:bg-white focus:border-blue-600 focus:ring-2 focus:ring-blue-100 focus:outline-none transition-all shadow-xs"
               />
             </div>
 
             {/* Modal Bottom Action Controls */}
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-slate-800 pt-4">
-              <span className="text-xs text-slate-400">
-                Officer: <span className="font-mono text-blue-400 font-bold">{user?.email}</span>
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-slate-200 pt-4">
+              <span className="text-xs text-slate-500">
+                Officer: <span className="font-mono text-blue-700 font-bold">{user?.email}</span>
               </span>
 
               <div className="flex items-center gap-3 w-full sm:w-auto">
@@ -1069,8 +1089,8 @@ export default function AdminPortalPage() {
                   onClick={() => handleDecision("rejected")}
                   className={`flex-1 sm:flex-none flex items-center justify-center gap-2 rounded-2xl px-5 py-3 text-xs font-bold transition-all ${
                     failedCount > 0
-                      ? "bg-red-600 text-white hover:bg-red-700 shadow-lg shadow-red-900/40"
-                      : "border border-red-500/40 bg-red-500/10 text-red-300 hover:bg-red-500/20"
+                      ? "bg-red-600 text-white hover:bg-red-700 shadow-md shadow-red-600/20"
+                      : "border border-red-200 bg-red-50 text-red-700 hover:bg-red-100"
                   }`}
                 >
                   <XCircle className="size-4" />
@@ -1081,10 +1101,10 @@ export default function AdminPortalPage() {
                   type="button"
                   disabled={processingAction || failedCount > 0}
                   onClick={() => handleDecision("verified")}
-                  className={`flex-1 sm:flex-none flex items-center justify-center gap-2 rounded-2xl px-6 py-3 text-xs font-bold text-white shadow-xl transition-all ${
+                  className={`flex-1 sm:flex-none flex items-center justify-center gap-2 rounded-2xl px-6 py-3 text-xs font-bold text-white shadow-md transition-all ${
                     failedCount > 0
-                      ? "bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700"
-                      : "bg-emerald-600 hover:bg-emerald-500 shadow-emerald-900/40"
+                      ? "bg-slate-200 text-slate-400 cursor-not-allowed border border-slate-300 shadow-none"
+                      : "bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/20"
                   }`}
                 >
                   {processingAction ? (
@@ -1100,105 +1120,161 @@ export default function AdminPortalPage() {
         </div>
       )}
 
-      {/* ========================================================================= */}
-      {/* HIGH-RESOLUTION FORENSIC LIGHTBOX VIEWER */}
-      {/* ========================================================================= */}
+      {/* High-Resolution Forensic Document Inspector Modal */}
       {activeViewerDoc && (
-        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/95 backdrop-blur-xl p-4">
-          {/* Lightbox Top Control Bar */}
-          <div className="w-full max-w-5xl flex items-center justify-between pb-3 text-white border-b border-slate-800/80 mb-3">
-            <div className="flex items-center gap-3">
-              <FileText className="size-6 text-blue-400" />
-              <div>
-                <h3 className="text-base font-bold text-white">{activeViewerDoc.name}</h3>
-                <p className="text-xs text-slate-400">High-Resolution Forensic Lightbox</p>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-3 md:p-6 overflow-hidden animate-in fade-in duration-200">
+          <div className="relative w-full max-w-5xl h-[90vh] rounded-3xl border border-slate-200 bg-white shadow-2xl flex flex-col overflow-hidden text-slate-900">
+            {/* Top Control Header Bar */}
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-6 py-4 bg-white/95 backdrop-blur-md shrink-0">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="flex size-11 items-center justify-center rounded-2xl bg-blue-50 text-blue-600 border border-blue-200 shadow-xs shrink-0">
+                  <FileText className="size-5" />
+                </div>
+                <div className="min-w-0">
+                  <h3 className="font-serif text-lg font-bold text-slate-900 truncate">
+                    {activeViewerDoc.name}
+                  </h3>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-bold text-blue-700 border border-blue-200">
+                      <ShieldCheck className="size-3 text-blue-600" /> Forensic Viewer
+                    </span>
+                    <span className="text-xs text-slate-500 hidden sm:inline">
+                      Authority Document Vault Inspection
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Lightbox Controls Toolbar */}
+              <div className="flex items-center gap-2 shrink-0">
+                {/* Visual Tool Pills */}
+                <div className="flex items-center gap-1 rounded-xl border border-slate-200 bg-slate-50 p-1 shadow-xs">
+                  <button
+                    onClick={() => setHighContrast((c) => !c)}
+                    className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition-all ${
+                      highContrast
+                        ? "bg-blue-600 text-white shadow-xs font-bold"
+                        : "text-slate-600 hover:text-slate-900 hover:bg-white"
+                    }`}
+                    title="Toggle High Contrast for watermark & microprint inspection"
+                  >
+                    <SunMoon className="size-3.5" />
+                    <span className="hidden sm:inline">High Contrast</span>
+                  </button>
+
+                  <div className="h-4 w-px bg-slate-200 mx-0.5" />
+
+                  <button
+                    onClick={() => setZoomLevel((z) => Math.max(0.5, Number((z - 0.25).toFixed(2))))}
+                    className="rounded-lg p-1.5 text-slate-600 hover:text-slate-900 hover:bg-white transition-all"
+                    title="Zoom Out"
+                  >
+                    <ZoomOut className="size-4" />
+                  </button>
+
+                  <button
+                    onClick={() => setZoomLevel(1)}
+                    className="rounded-lg px-2 py-1 text-xs font-mono font-bold text-slate-700 hover:text-slate-900 hover:bg-white transition-all"
+                    title="Reset Zoom to 100%"
+                  >
+                    {(zoomLevel * 100).toFixed(0)}%
+                  </button>
+
+                  <button
+                    onClick={() => setZoomLevel((z) => Math.min(3, Number((z + 0.25).toFixed(2))))}
+                    className="rounded-lg p-1.5 text-slate-600 hover:text-slate-900 hover:bg-white transition-all"
+                    title="Zoom In"
+                  >
+                    <ZoomIn className="size-4" />
+                  </button>
+
+                  <div className="h-4 w-px bg-slate-200 mx-0.5" />
+
+                  <button
+                    onClick={() => setRotationAngle((r) => (r + 90) % 360)}
+                    className="rounded-lg p-1.5 text-slate-600 hover:text-slate-900 hover:bg-white transition-all"
+                    title="Rotate 90° Clockwise"
+                  >
+                    <RotateCw className="size-4" />
+                  </button>
+                </div>
+
+                {/* Download Button */}
+                <a
+                  href={activeViewerDoc.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  download
+                  className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 shadow-xs hover:bg-slate-50 hover:text-slate-900 transition-all"
+                  title="Download Original File"
+                >
+                  <Download className="size-3.5" />
+                  <span className="hidden md:inline">Download</span>
+                </a>
+
+                {/* Close Button */}
+                <button
+                  onClick={() => {
+                    setActiveViewerDoc(null);
+                    setZoomLevel(1);
+                    setRotationAngle(0);
+                    setHighContrast(false);
+                  }}
+                  className="rounded-xl p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition-colors ml-1"
+                  title="Close Inspector"
+                >
+                  <X className="size-5" />
+                </button>
               </div>
             </div>
 
-            {/* Lightbox Controls */}
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setHighContrast((c) => !c)}
-                className={`rounded-xl border p-2 text-xs font-semibold transition-colors ${
-                  highContrast
-                    ? "bg-blue-600 text-white border-blue-500"
-                    : "border-slate-700 bg-slate-800 text-slate-300 hover:bg-slate-700"
-                }`}
-                title="Toggle High Contrast (Watermark analysis)"
-              >
-                <SunMoon className="size-4" />
-              </button>
-
-              <button
-                onClick={() => setZoomLevel((z) => Math.max(0.5, z - 0.25))}
-                className="rounded-xl border border-slate-700 bg-slate-800 p-2 text-slate-300 hover:bg-slate-700 hover:text-white"
-                title="Zoom Out"
-              >
-                <ZoomOut className="size-4" />
-              </button>
-              <button
-                onClick={() => setZoomLevel(1)}
-                className="rounded-xl border border-slate-700 bg-slate-800 px-3 py-2 text-xs font-bold text-slate-300 hover:bg-slate-700 hover:text-white"
-              >
-                {(zoomLevel * 100).toFixed(0)}%
-              </button>
-              <button
-                onClick={() => setZoomLevel((z) => Math.min(3, z + 0.25))}
-                className="rounded-xl border border-slate-700 bg-slate-800 p-2 text-slate-300 hover:bg-slate-700 hover:text-white"
-                title="Zoom In"
-              >
-                <ZoomIn className="size-4" />
-              </button>
-              <button
-                onClick={() => setRotationAngle((r) => (r + 90) % 360)}
-                className="rounded-xl border border-slate-700 bg-slate-800 p-2 text-slate-300 hover:bg-slate-700 hover:text-white"
-                title="Rotate 90°"
-              >
-                <RotateCw className="size-4" />
-              </button>
-
-              <a
-                href={activeViewerDoc.url}
-                target="_blank"
-                rel="noreferrer"
-                download
-                className="rounded-xl border border-slate-700 bg-slate-800 p-2 text-slate-300 hover:bg-slate-700 hover:text-white"
-                title="Download Original File"
-              >
-                <Download className="size-4" />
-              </a>
-
-              <button
-                onClick={() => {
-                  setActiveViewerDoc(null);
-                  setZoomLevel(1);
-                  setRotationAngle(0);
-                  setHighContrast(false);
-                }}
-                className="rounded-xl bg-red-600/80 p-2 text-white hover:bg-red-600 ml-2"
-                title="Close Viewer"
-              >
-                <X className="size-5" />
-              </button>
+            {/* Document Stage Canvas */}
+            <div className="relative flex-1 bg-slate-100/70 overflow-hidden flex items-center justify-center p-2 sm:p-4 select-none bg-[radial-gradient(#cbd5e1_1px,transparent_1px)] [background-size:20px_20px]">
+              {activeViewerDoc.url ? (
+                <div className="size-full flex items-center justify-center overflow-hidden">
+                  <img
+                    src={activeViewerDoc.url}
+                    alt={activeViewerDoc.name}
+                    style={{
+                      transform: `scale(${zoomLevel}) rotate(${rotationAngle}deg)`,
+                      filter: highContrast ? "contrast(180%) brightness(105%) saturate(120%)" : "none",
+                      transition: "transform 0.2s cubic-bezier(0.2, 0, 0, 1), filter 0.2s ease-in-out",
+                    }}
+                    className="size-full object-contain select-none"
+                  />
+                </div>
+              ) : (
+                <div className="py-16 px-12 text-center text-slate-500 rounded-2xl border border-slate-200 bg-white shadow-sm">
+                  <FileText className="mx-auto size-12 text-slate-300 mb-2" />
+                  <p className="text-sm font-bold text-slate-700">Document preview unavailable</p>
+                  <p className="text-xs text-slate-500 mt-1">The raw document binary could not be rendered.</p>
+                </div>
+              )}
             </div>
-          </div>
 
-          {/* Lightbox Canvas Frame */}
-          <div className="relative w-full max-w-5xl h-[78vh] rounded-3xl border border-slate-800 bg-slate-950 overflow-hidden flex items-center justify-center p-4">
-            {activeViewerDoc.url ? (
-              <img
-                src={activeViewerDoc.url}
-                alt={activeViewerDoc.name}
-                style={{
-                  transform: `scale(${zoomLevel}) rotate(${rotationAngle}deg)`,
-                  filter: highContrast ? "contrast(180%) brightness(110%)" : "none",
-                  transition: "transform 0.2s ease-in-out, filter 0.2s ease-in-out",
-                }}
-                className="max-h-full max-w-full object-contain select-none shadow-2xl"
-              />
-            ) : (
-              <p className="text-slate-500">Document preview unavailable</p>
-            )}
+            {/* Bottom Metadata & Status Bar */}
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-2 border-t border-slate-200 bg-white px-6 py-3 text-xs text-slate-500 shrink-0">
+              <div className="flex items-center gap-2">
+                <ShieldCheck className="size-4 text-blue-600 shrink-0" />
+                <span>
+                  Encrypted Document Vault Inspection • Government of India Authority Clearance
+                </span>
+              </div>
+
+              <div className="flex items-center gap-3 font-mono text-[11px] text-slate-500">
+                <span>
+                  Scale: <strong className="text-slate-800 font-bold">{(zoomLevel * 100).toFixed(0)}%</strong>
+                </span>
+                <span>•</span>
+                <span>
+                  Angle: <strong className="text-slate-800 font-bold">{rotationAngle}°</strong>
+                </span>
+                <span>•</span>
+                <span>
+                  Mode: <strong className="text-slate-800 font-bold">{highContrast ? "High Contrast" : "Standard"}</strong>
+                </span>
+              </div>
+            </div>
           </div>
         </div>
       )}

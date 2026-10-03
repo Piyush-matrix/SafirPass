@@ -244,8 +244,10 @@ export function Header() {
                 <button
                   type="button"
                   onClick={() => toggleDropdown("features")}
+                  aria-expanded={activeDropdown === "features"}
+                  aria-haspopup="menu"
                   className={`flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-semibold transition-all ${isFeaturesActive || activeDropdown === "features"
-                      ? "bg-blue-50 text-blue-700 font-bold"
+                      ? "bg-blue-50 text-blue-700 font-bold shadow-sm"
                       : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
                     }`}
                 >
@@ -256,7 +258,11 @@ export function Header() {
                 </button>
 
                 {activeDropdown === "features" && (
-                  <div className="absolute left-0 mt-2 w-[480px] rounded-2xl border border-slate-200 bg-white p-3 shadow-2xl shadow-slate-900/10 animate-in fade-in slide-in-from-top-2 duration-200 z-50">
+                  <div className="absolute left-0 mt-3 w-[480px] overflow-hidden rounded-2xl border border-slate-200/90 bg-white p-2.5 shadow-2xl shadow-slate-900/15 ring-1 ring-slate-900/5 animate-in fade-in slide-in-from-top-2 duration-200 z-50">
+                    <div className="mb-2 flex items-center justify-between border-b border-slate-100 px-2 pb-2">
+                      <span className="text-[10px] font-extrabold uppercase tracking-[0.14em] text-slate-400">Explore SafirPass</span>
+                      <Sparkles className="size-3.5 text-blue-500" />
+                    </div>
                     <div className="grid grid-cols-2 gap-2">
                       {featureLinks.map((item) => (
                         <Link
@@ -265,7 +271,7 @@ export function Header() {
                           onClick={() => setActiveDropdown(null)}
                           className={`group flex flex-col rounded-xl p-3 transition-all ${isActive(item.href)
                               ? "bg-blue-50/80 border border-blue-200/80"
-                              : "hover:bg-slate-50 border border-transparent"
+                              : "border border-transparent hover:border-slate-200 hover:bg-slate-50 hover:shadow-sm"
                             }`}
                         >
                           <div className="flex items-center justify-between">
@@ -273,15 +279,15 @@ export function Header() {
                               {item.icon}
                             </div>
                             {item.badge && (
-                              <span className="rounded-full bg-blue-100/80 px-2 py-0.5 text-[10px] font-bold text-blue-700">
+                              <span className="rounded-full bg-blue-100/80 px-2 py-0.5 text-[11px] font-bold text-blue-700">
                                 {item.badge}
                               </span>
                             )}
                           </div>
-                          <p className="mt-2 text-xs font-bold text-slate-900 group-hover:text-blue-600 transition-colors">
+                          <p className="mt-2 text-sm font-bold text-slate-900 group-hover:text-blue-600 transition-colors">
                             {item.title}
                           </p>
-                          <p className="mt-0.5 text-[11px] leading-tight text-slate-500">
+                          <p className="mt-0.5 text-xs leading-tight text-slate-500">
                             {item.desc}
                           </p>
                         </Link>
@@ -289,14 +295,14 @@ export function Header() {
                     </div>
 
                     <div className="mt-2 flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2 text-xs text-slate-600 border border-slate-100">
-                      <span className="flex items-center gap-1.5 font-medium text-[11px]">
+                      <span className="flex items-center gap-1.5 font-medium text-xs">
                         <Sparkles className="size-3.5 text-blue-600" />
                         Zero-Knowledge cryptographic privacy verified
                       </span>
                       <Link
                         href="/how-it-works"
                         onClick={() => setActiveDropdown(null)}
-                        className="flex items-center gap-1 text-[11px] font-bold text-blue-600 hover:text-blue-700"
+                        className="flex items-center gap-1 text-xs font-bold text-blue-600 hover:text-blue-700"
                       >
                         Explore <ArrowRight className="size-3" />
                       </Link>
@@ -322,7 +328,8 @@ export function Header() {
                 </button>
 
                 {activeDropdown === "solutions" && (
-                  <div className="absolute left-0 mt-2 w-[400px] rounded-2xl border border-slate-200 bg-white p-3 shadow-2xl shadow-slate-900/10 animate-in fade-in slide-in-from-top-2 duration-200 z-50">
+                  <div className="absolute left-0 mt-3 w-[400px] overflow-hidden rounded-2xl border border-slate-200/90 bg-white p-2.5 shadow-2xl shadow-slate-900/15 ring-1 ring-slate-900/5 animate-in fade-in slide-in-from-top-2 duration-200 z-50">
+                    <div className="mb-2 border-b border-slate-100 px-2 pb-2 text-[10px] font-extrabold uppercase tracking-[0.14em] text-slate-400">Built for every journey</div>
                     <div className="space-y-1">
                       {solutionLinks.map((item) => (
                         <Link
@@ -331,7 +338,7 @@ export function Header() {
                           onClick={() => setActiveDropdown(null)}
                           className={`group flex items-start gap-3 rounded-xl p-2.5 transition-all ${isActive(item.href)
                               ? "bg-blue-50/80 border border-blue-200/80"
-                              : "hover:bg-slate-50 border border-transparent"
+                              : "border border-transparent hover:border-slate-200 hover:bg-slate-50 hover:shadow-sm"
                             }`}
                         >
                           <div className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-slate-100 group-hover:bg-white group-hover:shadow-xs transition-colors">
@@ -339,7 +346,7 @@ export function Header() {
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center justify-between">
-                              <p className="text-xs font-bold text-slate-900 group-hover:text-blue-600 transition-colors">
+                              <p className="text-sm font-bold text-slate-900 group-hover:text-blue-600 transition-colors">
                                 {item.title}
                               </p>
                               {item.badge && (
@@ -388,8 +395,10 @@ export function Header() {
                 <button
                   type="button"
                   onClick={() => toggleDropdown("resources")}
+                  aria-expanded={activeDropdown === "resources"}
+                  aria-haspopup="menu"
                   className={`flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-semibold transition-all ${isResourcesActive || activeDropdown === "resources"
-                      ? "bg-blue-50 text-blue-700 font-bold"
+                      ? "bg-blue-50 text-blue-700 font-bold shadow-sm"
                       : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
                     }`}
                 >
@@ -400,7 +409,7 @@ export function Header() {
                 </button>
 
                 {activeDropdown === "resources" && (
-                  <div className="absolute left-0 mt-2 w-72 rounded-2xl border border-slate-200 bg-white p-2.5 shadow-2xl shadow-slate-900/10 animate-in fade-in slide-in-from-top-2 duration-200 z-50">
+                  <div className="absolute left-0 mt-3 w-72 overflow-hidden rounded-2xl border border-slate-200/90 bg-white p-2.5 shadow-2xl shadow-slate-900/15 ring-1 ring-slate-900/5 animate-in fade-in slide-in-from-top-2 duration-200 z-50">
                     <div className="space-y-1">
                       {resourceLinks.map((item) => (
                         <Link
@@ -409,7 +418,7 @@ export function Header() {
                           onClick={() => setActiveDropdown(null)}
                           className={`flex items-start gap-3 rounded-xl p-2.5 transition-colors ${isActive(item.href)
                               ? "bg-blue-50 text-blue-700"
-                              : "hover:bg-slate-50 text-slate-800"
+                              : "text-slate-800 hover:bg-slate-50 hover:shadow-sm"
                             }`}
                         >
                           <div className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-lg bg-slate-100">
@@ -417,16 +426,16 @@ export function Header() {
                           </div>
                           <div>
                             <div className="flex items-center gap-1.5">
-                              <p className="text-xs font-bold text-slate-900 leading-tight">
+                              <p className="text-sm font-bold text-slate-900 leading-tight">
                                 {item.title}
                               </p>
                               {item.badge && (
-                                <span className="rounded bg-emerald-100 px-1.5 py-0.2 text-[9px] font-bold text-emerald-800">
+                                <span className="rounded bg-emerald-100 px-1.5 py-0.2 text-[10px] font-bold text-emerald-800">
                                   {item.badge}
                                 </span>
                               )}
                             </div>
-                            <p className="mt-0.5 text-[11px] text-slate-500 leading-tight">
+                            <p className="mt-0.5 text-xs text-slate-500 leading-tight">
                               {item.desc}
                             </p>
                           </div>
@@ -472,8 +481,10 @@ export function Header() {
                   <button
                     type="button"
                     onClick={() => toggleDropdown("identity")}
+                    aria-expanded={activeDropdown === "identity"}
+                    aria-haspopup="menu"
                     className={`flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-semibold transition-all ${isIdentityActive || activeDropdown === "identity"
-                        ? "bg-blue-50 text-blue-700 font-bold"
+                        ? "bg-blue-50 text-blue-700 font-bold shadow-sm"
                         : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
                       }`}
                   >
@@ -484,7 +495,8 @@ export function Header() {
                   </button>
 
                   {activeDropdown === "identity" && (
-                    <div className="absolute left-0 mt-2 w-[440px] rounded-2xl border border-slate-200 bg-white p-3 shadow-2xl shadow-slate-900/10 animate-in fade-in slide-in-from-top-2 duration-200 z-50">
+                    <div className="absolute left-0 mt-3 w-[440px] overflow-hidden rounded-2xl border border-slate-200/90 bg-white p-2.5 shadow-2xl shadow-slate-900/15 ring-1 ring-slate-900/5 animate-in fade-in slide-in-from-top-2 duration-200 z-50">
+                      <div className="mb-2 border-b border-slate-100 px-2 pb-2 text-[10px] font-extrabold uppercase tracking-[0.14em] text-slate-400">Your identity toolkit</div>
                       <div className="space-y-1">
                         {postLoginIdentityLinks.map((item) => (
                           <Link
@@ -493,7 +505,7 @@ export function Header() {
                             onClick={() => setActiveDropdown(null)}
                             className={`group flex items-start gap-3 rounded-xl p-2.5 transition-all ${isActive(item.href)
                                 ? "bg-blue-50/80 border border-blue-200/80"
-                                : "hover:bg-slate-50 border border-transparent"
+                                : "border border-transparent hover:border-slate-200 hover:bg-slate-50 hover:shadow-sm"
                               }`}
                           >
                             <div className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-slate-100 group-hover:bg-white group-hover:shadow-xs transition-colors">
@@ -501,16 +513,16 @@ export function Header() {
                             </div>
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center justify-between">
-                                <p className="text-xs font-bold text-slate-900 group-hover:text-blue-600 transition-colors">
+                                <p className="text-sm font-bold text-slate-900 group-hover:text-blue-600 transition-colors">
                                   {item.title}
                                 </p>
                                 {item.badge && (
-                                  <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[9px] font-bold text-slate-700">
+                                  <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-700">
                                     {item.badge}
                                   </span>
                                 )}
                               </div>
-                              <p className="mt-0.5 text-[11px] text-slate-500 leading-tight">
+                              <p className="mt-0.5 text-xs text-slate-500 leading-tight">
                                 {item.desc}
                               </p>
                             </div>
@@ -519,14 +531,14 @@ export function Header() {
                       </div>
 
                       <div className="mt-2 border-t border-slate-100 pt-2 px-2 flex items-center justify-between">
-                        <span className="flex items-center gap-1.5 text-[11px] font-medium text-slate-500">
+                        <span className="flex items-center gap-1.5 text-xs font-medium text-slate-500">
                           <CheckCircle2 className="size-3.5 text-emerald-600" />
                           Offline Zero-Knowledge proofs active
                         </span>
                         <Link
                           href="/dashboard/id"
                           onClick={() => setActiveDropdown(null)}
-                          className="inline-flex items-center gap-1 text-[11px] font-bold text-blue-600 hover:text-blue-700"
+                          className="inline-flex items-center gap-1 text-xs font-bold text-blue-600 hover:text-blue-700"
                         >
                           View ID Pass <ArrowRight className="size-3" />
                         </Link>
@@ -572,7 +584,12 @@ export function Header() {
               <button
                 type="button"
                 onClick={() => toggleDropdown("user")}
-                className="flex items-center gap-2 rounded-xl border border-slate-200/90 bg-slate-50/90 p-1.5 pr-2.5 text-sm font-medium text-slate-800 hover:bg-slate-100 transition-colors shadow-2xs group"
+                aria-expanded={activeDropdown === "user"}
+                aria-haspopup="menu"
+                className={`flex items-center gap-2 rounded-xl border p-1.5 pr-2.5 text-sm font-medium transition-all shadow-2xs group ${activeDropdown === "user"
+                    ? "border-blue-200 bg-blue-50/80 text-blue-900 shadow-sm"
+                    : "border-slate-200/90 bg-slate-50/90 text-slate-800 hover:bg-slate-100"
+                  }`}
               >
                 <div className="relative">
                   {user.user_metadata?.avatar_url ? (
@@ -609,7 +626,7 @@ export function Header() {
               </button>
 
               {activeDropdown === "user" && (
-                <div className="absolute right-0 mt-2 w-64 rounded-2xl border border-slate-200 bg-white p-2.5 shadow-2xl animate-in fade-in slide-in-from-top-2 duration-150 z-50">
+                <div className="absolute right-0 mt-3 w-64 overflow-hidden rounded-2xl border border-slate-200/90 bg-white p-2.5 shadow-2xl shadow-slate-900/15 ring-1 ring-slate-900/5 animate-in fade-in slide-in-from-top-2 duration-150 z-50">
                   <div className="border-b border-slate-100 p-2 text-xs">
                     <div className="flex items-center justify-between">
                       <p className="font-bold text-slate-900 truncate">
