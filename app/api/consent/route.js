@@ -4,14 +4,14 @@ import {
   getConsentRequestsByUserId,
   updateConsentRequestStatus,
 } from "@/lib/db/postgres";
-import { getSession, verifyJwt } from "@/lib/jwt";
+import { getSession } from "@/lib/jwt";
 import { toValidUuid } from "@/lib/uuid";
 
 export async function GET(request) {
   try {
     const session = await getSession(request);
     if (!session?.id) {
-      return NextResponse.json({ success: true, requests: [] });
+      return NextResponse.json({ error: "Unauthorized. Please sign in." }, { status: 401 });
     }
 
     const requests = await getConsentRequestsByUserId(session.id);
@@ -27,9 +27,12 @@ export async function GET(request) {
 export async function POST(request) {
   try {
     const session = await getSession(request);
-    const body = await request.json();
+    if (!session?.id) {
+      return NextResponse.json({ error: "Unauthorized. Please sign in." }, { status: 401 });
+    }
 
-    const userId = session?.id ? toValidUuid(session.id) : toValidUuid(body.user_id || "demo-user");
+    const body = await request.json();
+    const userId = toValidUuid(session.id);
     const consent = await createConsentRequest({
       user_id: userId,
       requester: body.requester || "Authority / Hotel Desk",
@@ -50,6 +53,11 @@ export async function POST(request) {
 
 export async function PATCH(request) {
   try {
+    const session = await getSession(request);
+    if (!session?.id) {
+      return NextResponse.json({ error: "Unauthorized. Please sign in." }, { status: 401 });
+    }
+
     const body = await request.json();
     const { id, status, shared_attributes } = body;
 

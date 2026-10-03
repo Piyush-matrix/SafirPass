@@ -8,12 +8,16 @@ export async function GET(request) {
     const token = cookieHeader?.value;
     const session = token ? await verifyJwt(token) : null;
 
-    const { searchParams } = new URL(request.url);
-    const requestedUserId = searchParams.get("userId") || session?.id;
-
-    if (!requestedUserId) {
-      return NextResponse.json({ kyc: null });
+    if (!session || !session.id) {
+      return NextResponse.json({ error: "Unauthorized. Please sign in." }, { status: 401 });
     }
+
+    const { searchParams } = new URL(request.url);
+    const requestedUserId =
+      session.role === "admin" && searchParams.get("userId")
+        ? searchParams.get("userId")
+        : session.id;
+
 
     const unifiedKyc = await getUnifiedTouristKyc(requestedUserId);
 

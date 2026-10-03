@@ -60,15 +60,18 @@ export async function GET(request) {
       full_name: googleUser.name || googleUser.email,
       email: googleUser.email,
       avatar_url: googleUser.picture,
+      role: "tourist",
     });
 
     // Issue JWT Session
     const sessionPayload = {
       id: userId,
       email: googleUser.email,
+      role: "tourist",
       user_metadata: {
         full_name: googleUser.name || googleUser.email,
         avatar_url: googleUser.picture,
+        role: "tourist",
       },
     };
 

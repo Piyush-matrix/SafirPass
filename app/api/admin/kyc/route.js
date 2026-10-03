@@ -12,7 +12,10 @@ export async function GET(request) {
 
     const payload = token ? await verifyJwt(token) : null;
     if (!payload || payload.role !== "admin") {
-      // Allow fallback if called during local development session or authority view
+      return NextResponse.json(
+        { error: "Forbidden. Administrative clearance required to access KYC queue." },
+        { status: 403 }
+      );
     }
 
     const [applications, auditLogs] = await Promise.all([
@@ -33,14 +36,21 @@ export async function GET(request) {
   }
 }
 
-
 export async function POST(request) {
   try {
     const cookieHeader = request.cookies.get("safirpass_session");
     const token = cookieHeader?.value;
     const session = token ? await verifyJwt(token) : null;
 
+    if (!session || session.role !== "admin") {
+      return NextResponse.json(
+        { error: "Forbidden. Administrative authority required to process KYC decisions." },
+        { status: 403 }
+      );
+    }
+
     const { userId, decision, notes, documentDecisions = {}, failedDocs = [] } = await request.json();
+
 
     if (!userId || !decision) {
       return NextResponse.json(

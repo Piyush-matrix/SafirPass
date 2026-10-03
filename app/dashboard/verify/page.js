@@ -434,14 +434,41 @@ export default function VerificationPortalPage() {
     }, 1800);
   };
 
+  const readFileAsDataUrl = (file, maxDimension = 1600, quality = 0.78) =>
+    new Promise((resolve, reject) => {
+      if (!file.type.startsWith("image/")) {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = () => reject(reader.error || new Error("Unable to read file."));
+        reader.readAsDataURL(file);
+        return;
+      }
+
+      const image = new Image();
+      const objectUrl = URL.createObjectURL(file);
+      image.onload = () => {
+        const scale = Math.min(1, maxDimension / Math.max(image.width, image.height));
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.max(1, Math.round(image.width * scale));
+        canvas.height = Math.max(1, Math.round(image.height * scale));
+        canvas.getContext("2d").drawImage(image, 0, 0, canvas.width, canvas.height);
+        URL.revokeObjectURL(objectUrl);
+        resolve(canvas.toDataURL("image/jpeg", quality));
+      };
+      image.onerror = () => {
+        URL.revokeObjectURL(objectUrl);
+        reject(new Error("Unable to read image."));
+      };
+      image.src = objectUrl;
+    });
+
   // Handle Selfie Portrait File Upload fallback
-  const handlePortraitUpload = (e) => {
+  const handlePortraitUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const reader = new FileReader();
-    reader.onload = (uploadEvent) => {
-      const dataUrl = uploadEvent.target.result;
+    try {
+      const dataUrl = await readFileAsDataUrl(file, 1000, 0.8);
       setSnapshotData(dataUrl);
       setLivenessScanning(true);
       setTimeout(() => {
@@ -449,18 +476,18 @@ export default function VerificationPortalPage() {
         setLivenessPassed(true);
         setLivenessScore(0.975);
       }, 1500);
-    };
-    reader.readAsDataURL(file);
+    } catch (err) {
+      setErrorMsg(err.message || "Unable to read portrait file.");
+    }
   };
 
   // Handle Document File Upload
-  const handleDocFileUpload = (docId, e) => {
+  const handleDocFileUpload = async (docId, e) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const reader = new FileReader();
-    reader.onload = (uploadEvent) => {
-      const base64Data = uploadEvent.target.result;
+    try {
+      const base64Data = await readFileAsDataUrl(file);
       setUploadedDocs((prev) => ({
         ...prev,
         [docId]: {
@@ -493,8 +520,9 @@ export default function VerificationPortalPage() {
           })
           .catch(() => {});
       }
-    };
-    reader.readAsDataURL(file);
+    } catch (err) {
+      setErrorMsg(err.message || "Unable to read document file.");
+    }
   };
 
 
@@ -558,7 +586,13 @@ export default function VerificationPortalPage() {
         body: JSON.stringify(payload),
       });
 
-      const data = await res.json();
+      const responseText = await res.text();
+      let data;
+      try {
+        data = responseText ? JSON.parse(responseText) : {};
+      } catch {
+        throw new Error(responseText || "KYC submission failed.");
+      }
 
       if (!res.ok) {
         throw new Error(data.error || "KYC submission failed.");
