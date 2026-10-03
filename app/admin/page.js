@@ -92,29 +92,51 @@ export default function AdminPortalPage() {
     }
   }, []);
 
+  // ML Dataset & Model Training State
+  const [datasetStats, setDatasetStats] = useState(null);
+  const [trainingModel, setTrainingModel] = useState(false);
+  const [trainResult, setTrainResult] = useState(null);
+
+  const loadDatasetStats = async () => {
+    try {
+      const res = await fetch("/api/admin/documents/dataset");
+      const data = await res.json();
+      if (res.ok) setDatasetStats(data);
+    } catch (err) {
+      console.warn("Failed to load dataset stats:", err);
+    }
+  };
+
+  const handleRetrainModel = async () => {
+    setTrainingModel(true);
+    setTrainResult(null);
+    try {
+      const res = await fetch("/api/admin/documents/dataset", { method: "POST" });
+      const data = await res.json();
+      setTrainResult(data);
+      loadDatasetStats();
+    } catch (err) {
+      setTrainResult({ success: false, message: err.message || "Failed to retrain model" });
+    } finally {
+      setTrainingModel(false);
+    }
+  };
+
   useEffect(() => {
     let ignore = false;
     if (!authLoading) {
       if (!user) {
         router.push("/auth");
       } else {
-        fetch("/api/admin/kyc")
-          .then((res) => res.json())
-          .then((data) => {
-            if (ignore) return;
-            if (data?.applications) setApplications(data.applications);
-            if (data?.auditLogs) setAuditLogs(data.auditLogs);
-          })
-          .catch((err) => console.warn("Failed to load admin applications:", err))
-          .finally(() => {
-            if (!ignore) setLoading(false);
-          });
+        loadData();
+        loadDatasetStats();
       }
     }
     return () => {
       ignore = true;
     };
-  }, [user, authLoading, router]);
+  }, [user, authLoading, router, loadData]);
+
 
   // Open Detailed Application Inspector
   const handleOpenReview = (app) => {
@@ -415,6 +437,85 @@ export default function AdminPortalPage() {
                 <p className="font-serif text-3xl font-extrabold text-red-900">{stats.rejected}</p>
                 <p className="text-[11px] text-red-700">Flagged with resubmission feedback</p>
               </div>
+            </div>
+
+            {/* AI/ML Document Dataset & Model Training Panel */}
+            <div className="rounded-2xl border border-indigo-500/30 bg-gradient-to-r from-indigo-950/40 to-slate-900/60 p-5 space-y-4">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="flex size-10 items-center justify-center rounded-xl bg-indigo-600/20 text-indigo-400 border border-indigo-500/30">
+                    <Sparkles className="size-5" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-sm font-bold text-white">AI Document Dataset &amp; Scikit-Learn Model</h3>
+                      <span className="rounded-full bg-indigo-500/20 px-2 py-0.5 text-[10px] font-bold text-indigo-300 border border-indigo-500/30">
+                        Active Learning
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-400">
+                      Uploaded passports, visas, stay proofs &amp; flight tickets build this training corpus with authority labels
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleRetrainModel}
+                  disabled={trainingModel}
+                  className="flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-xs font-bold text-white shadow-lg shadow-indigo-500/20 hover:bg-indigo-500 disabled:opacity-50 transition"
+                >
+                  {trainingModel ? (
+                    <>
+                      <Loader2 className="size-4 animate-spin" />
+                      <span>Training Model...</span>
+                    </>
+                  ) : (
+                    <>
+                      <RefreshCw className="size-4" />
+                      <span>Retrain Scikit-Learn Model</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {/* Dataset Stats Counters */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2 border-t border-slate-800/80">
+                <div className="rounded-xl bg-slate-950/60 p-3">
+                  <span className="text-[10px] font-bold uppercase text-slate-400">Total Samples</span>
+                  <p className="text-lg font-extrabold text-white">{datasetStats?.total_samples ?? "—"}</p>
+                </div>
+                <div className="rounded-xl bg-emerald-950/30 p-3 border border-emerald-500/20">
+                  <span className="text-[10px] font-bold uppercase text-emerald-400">Labeled Authentic</span>
+                  <p className="text-lg font-extrabold text-emerald-300">{datasetStats?.labeled_verified ?? "—"}</p>
+                </div>
+                <div className="rounded-xl bg-red-950/30 p-3 border border-red-500/20">
+                  <span className="text-[10px] font-bold uppercase text-red-400">Labeled Rejected</span>
+                  <p className="text-lg font-extrabold text-red-300">{datasetStats?.labeled_rejected ?? "—"}</p>
+                </div>
+                <div className="rounded-xl bg-amber-950/30 p-3 border border-amber-500/20">
+                  <span className="text-[10px] font-bold uppercase text-amber-400">Pending Review</span>
+                  <p className="text-lg font-extrabold text-amber-300">{datasetStats?.pending_review ?? "—"}</p>
+                </div>
+              </div>
+
+              {trainResult && (
+                <div className={`rounded-xl p-3 text-xs border ${
+                  trainResult.success ? "bg-emerald-950/40 border-emerald-500/30 text-emerald-300" : "bg-amber-950/40 border-amber-500/30 text-amber-300"
+                }`}>
+                  <p className="font-semibold">{trainResult.message}</p>
+                  {trainResult.feature_importances && (
+                    <div className="mt-1 flex flex-wrap gap-2 text-[11px] text-slate-400">
+                      <span>Top Features:</span>
+                      {Object.entries(trainResult.feature_importances).slice(0, 4).map(([f, imp]) => (
+                        <span key={f} className="rounded bg-slate-800 px-1.5 py-0.5 text-slate-200">
+                          {f}: {(imp * 100).toFixed(1)}%
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Search & Multi-Filter Bar */}

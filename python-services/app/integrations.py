@@ -1,14 +1,18 @@
 from __future__ import annotations
 
 import base64
+import json
 import os
 from datetime import datetime, timezone
+from typing import Any
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
-from sqlalchemy import DateTime, Float, String, create_engine
+from sqlalchemy import Boolean, DateTime, Float, String, Text, create_engine, func, select
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, sessionmaker
+
+from app.document_ml import DocumentFeatureExtractor, DocumentMlModel
 
 
 def utc_now() -> datetime:
@@ -42,13 +46,45 @@ class NotificationEvent(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
 
 
+class DocumentTrainingSample(Base):
+    __tablename__ = "document_training_samples"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    user_id: Mapped[str] = mapped_column(String(36), index=True)
+    doc_type: Mapped[str] = mapped_column(String(32), index=True)
+    file_name: Mapped[str] = mapped_column(String(255), default="")
+    file_url: Mapped[str] = mapped_column(Text, default="")
+    feature_vector_json: Mapped[str] = mapped_column(Text, default="{}")
+    quality_score: Mapped[float] = mapped_column(Float, default=0.0)
+    status: Mapped[str] = mapped_column(String(32), default="pending_review")
+    is_authentic: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    admin_notes: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)
+
+
+
+from dotenv import load_dotenv
+
+load_dotenv()
+
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./tourist_safety.db")
-engine = create_engine(
-    DATABASE_URL,
-    connect_args={"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {},
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql+psycopg://", 1)
+elif DATABASE_URL.startswith("postgresql://") and not DATABASE_URL.startswith("postgresql+"):
+    DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+psycopg://", 1)
+
+connect_args = (
+    {"check_same_thread": False}
+    if DATABASE_URL.startswith("sqlite")
+    else {"connect_timeout": 10}
 )
+
+engine = create_engine(DATABASE_URL, connect_args=connect_args)
 SessionLocal = sessionmaker(bind=engine, expire_on_commit=False)
 Base.metadata.create_all(engine)
+
+
 
 
 class LivenessSessionResponse(BaseModel):
@@ -77,6 +113,27 @@ class NotificationRequest(BaseModel):
 class AssistantRequest(BaseModel):
     message: str = Field(min_length=1, max_length=500)
     language: str | None = Field(default=None, pattern="^(en|hi|es|fr)$")
+
+
+class DocumentVerifyRequest(BaseModel):
+    doc_type: str = Field(min_length=2, max_length=50)
+    image_base64: str = Field(min_length=20)
+
+
+class DocumentSampleCreateRequest(BaseModel):
+    user_id: UUID
+    doc_type: str = Field(min_length=2, max_length=50)
+    file_name: str = Field(default="", max_length=255)
+    file_url: str = Field(default="", max_length=1000)
+    image_base64: str | None = Field(default=None)
+
+
+class DocumentSampleLabelRequest(BaseModel):
+    user_id: UUID
+    is_authentic: bool
+    doc_type: str | None = Field(default=None)
+    admin_notes: str | None = Field(default=None, max_length=500)
+
 
 
 class OpenCvVerifier:
@@ -190,6 +247,7 @@ rekognition = RekognitionVerifier()
 notifier = SnsNotifier()
 anomaly_detector = AnomalyDetector()
 assistant = SafetyAssistant()
+document_ml = DocumentMlModel()
 
 
 @router.post("/kyc/liveness-sessions", response_model=LivenessSessionResponse)
@@ -233,3 +291,125 @@ def send_notification(payload: NotificationRequest) -> dict[str, str]:
 @router.post("/assistant/messages")
 def assistant_message(payload: AssistantRequest) -> dict[str, str]:
     return assistant.reply(payload)
+
+
+@router.post("/documents/verify")
+def verify_document(payload: DocumentVerifyRequest) -> dict[str, Any]:
+    features = DocumentFeatureExtractor.extract_from_base64(payload.image_base64)
+    evaluation = document_ml.evaluate(payload.doc_type, features)
+    return {
+        "doc_type": payload.doc_type,
+        "features": features,
+        **evaluation,
+    }
+
+
+@router.post("/documents/samples")
+def ingest_document_sample(payload: DocumentSampleCreateRequest) -> dict[str, Any]:
+    features: dict[str, Any] = {}
+    quality = 0.0
+    if payload.image_base64:
+        features = DocumentFeatureExtractor.extract_from_base64(payload.image_base64)
+        quality = float(features.get("blur_score", 0.0))
+
+    sample_id = str(uuid4())
+    with SessionLocal() as session:
+        sample = DocumentTrainingSample(
+            id=sample_id,
+            user_id=str(payload.user_id),
+            doc_type=payload.doc_type,
+            file_name=payload.file_name or f"{payload.doc_type}_document",
+            file_url=payload.file_url or "",
+            feature_vector_json=json.dumps(features),
+            quality_score=quality,
+            status="pending_review",
+            is_authentic=None,
+        )
+        session.add(sample)
+        session.commit()
+
+    evaluation = document_ml.evaluate(payload.doc_type, features) if features else {}
+    return {
+        "sample_id": sample_id,
+        "status": "pending_review",
+        "doc_type": payload.doc_type,
+        "quality_score": quality,
+        "evaluation": evaluation,
+        "message": "Document sample ingested into dataset for ML training.",
+    }
+
+
+@router.patch("/documents/samples/label")
+def label_document_samples(payload: DocumentSampleLabelRequest) -> dict[str, Any]:
+    with SessionLocal() as session:
+        query = select(DocumentTrainingSample).where(DocumentTrainingSample.user_id == str(payload.user_id))
+        if payload.doc_type:
+            query = query.where(DocumentTrainingSample.doc_type == payload.doc_type)
+
+        samples = list(session.scalars(query))
+        labeled_count = 0
+        status_label = "verified" if payload.is_authentic else "rejected"
+
+        for sample in samples:
+            sample.is_authentic = payload.is_authentic
+            sample.status = status_label
+            if payload.admin_notes:
+                sample.admin_notes = payload.admin_notes
+            labeled_count += 1
+
+        session.commit()
+
+    return {
+        "success": True,
+        "labeled_count": labeled_count,
+        "is_authentic": payload.is_authentic,
+        "message": f"Updated {labeled_count} sample(s) with ground-truth label: {status_label}.",
+    }
+
+
+@router.post("/documents/train")
+def train_document_model() -> dict[str, Any]:
+    with SessionLocal() as session:
+        query = select(DocumentTrainingSample).where(DocumentTrainingSample.is_authentic.isnot(None))
+        samples = list(session.scalars(query))
+
+        training_data: list[tuple[list[float], int]] = []
+        for s in samples:
+            try:
+                feat_dict = json.loads(s.feature_vector_json)
+                vec = feat_dict.get("vector")
+                if vec and len(vec) == len(DocumentFeatureExtractor.FEATURE_NAMES):
+                    label = 1 if s.is_authentic else 0
+                    training_data.append((vec, label))
+            except Exception:
+                continue
+
+    result = document_ml.train(training_data)
+    return result
+
+
+@router.get("/documents/stats")
+def get_dataset_stats() -> dict[str, Any]:
+    with SessionLocal() as session:
+        total = session.scalar(select(func.count()).select_from(DocumentTrainingSample)) or 0
+        verified = session.scalar(select(func.count()).select_from(DocumentTrainingSample).where(DocumentTrainingSample.is_authentic == True)) or 0
+        rejected = session.scalar(select(func.count()).select_from(DocumentTrainingSample).where(DocumentTrainingSample.is_authentic == False)) or 0
+        pending = session.scalar(select(func.count()).select_from(DocumentTrainingSample).where(DocumentTrainingSample.is_authentic.is_(None))) or 0
+
+        type_counts = dict(
+            session.execute(
+                select(DocumentTrainingSample.doc_type, func.count(DocumentTrainingSample.id)).group_by(
+                    DocumentTrainingSample.doc_type
+                )
+            ).all()
+        )
+
+    return {
+        "total_samples": total,
+        "labeled_verified": verified,
+        "labeled_rejected": rejected,
+        "pending_review": pending,
+        "by_document_type": type_counts,
+        "model_trained": document_ml._model is not None,
+    }
+

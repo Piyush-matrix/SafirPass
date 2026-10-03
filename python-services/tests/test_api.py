@@ -88,3 +88,71 @@ def test_multilingual_assistant_and_aws_configuration_boundary() -> None:
         assert "session_id" in liveness_response.json()
     else:
         assert liveness_response.status_code == 503
+
+
+def test_document_ml_pipeline_and_dataset_collection() -> None:
+    import base64
+    import cv2
+    import numpy as np
+
+    client = make_client()
+    user_id = str(uuid4())
+
+    # Create dummy 100x150 test image
+    dummy_img = np.full((100, 150, 3), 200, dtype=np.uint8)
+    cv2.putText(dummy_img, "PASSPORT", (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 1)
+    _, buffer = cv2.imencode(".jpg", dummy_img)
+    b64_img = base64.b64encode(buffer).decode("utf-8")
+
+    # 1. Test real-time verification endpoint
+    verify_res = client.post(
+        "/v1/integrations/documents/verify",
+        json={"doc_type": "passport", "image_base64": b64_img},
+    )
+    assert verify_res.status_code == 200
+    assert "features" in verify_res.json()
+    assert verify_res.json()["features"]["aspect_ratio"] == 1.5
+
+    # 2. Test dataset sample ingestion
+    sample_res = client.post(
+        "/v1/integrations/documents/samples",
+        json={
+            "user_id": user_id,
+            "doc_type": "passport",
+            "file_name": "passport_scan.jpg",
+            "file_url": "https://res.cloudinary.com/sample.jpg",
+            "image_base64": b64_img,
+        },
+    )
+    assert sample_res.status_code == 200
+    assert sample_res.json()["status"] == "pending_review"
+
+    # 3. Test ground-truth labeling
+    label_res = client.patch(
+        "/v1/integrations/documents/samples/label",
+        json={
+            "user_id": user_id,
+            "doc_type": "passport",
+            "is_authentic": True,
+            "admin_notes": "Verified by authority",
+        },
+    )
+    assert label_res.status_code == 200
+    assert label_res.json()["labeled_count"] >= 1
+
+    # 4. Test dataset stats
+    stats_res = client.get("/v1/integrations/documents/stats")
+    assert stats_res.status_code == 200
+    data = stats_res.json()
+    assert data["total_samples"] >= 1
+    assert data["labeled_verified"] >= 1
+
+
+def test_document_model_training_endpoint() -> None:
+    client = make_client()
+    train_res = client.post("/v1/integrations/documents/train")
+    assert train_res.status_code == 200
+    data = train_res.json()
+    assert "trained" in data
+
+
