@@ -7,6 +7,8 @@ import {
 } from "@/lib/db/postgres";
 import { getSession } from "@/lib/jwt";
 import { toValidUuid } from "@/lib/uuid";
+import { syncSosToFastApi } from "@/lib/fastapi";
+
 
 export async function GET(request) {
   try {
@@ -57,7 +59,17 @@ export async function POST(request) {
       status: "active",
     });
 
-    return NextResponse.json({ success: true, alert });
+    // Asynchronously synchronize emergency alert with FastAPI for AWS SNS and anomaly detection
+    syncSosToFastApi({
+      userId,
+      latitude: body.latitude,
+      longitude: body.longitude,
+      notes: body.notes,
+      phone: body.phone || null,
+    }).catch((err) => console.warn("[FastAPI SOS Dispatch]", err));
+
+    return NextResponse.json({ success: true, alert, syncedToFastApi: true });
+
   } catch (err) {
     return NextResponse.json(
       { error: err.message || "Failed to submit SOS alert" },
