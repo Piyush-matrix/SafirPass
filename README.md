@@ -17,9 +17,12 @@ The platform combines:
 
 SafirPass gives tourists a safer alternative to handing over physical passports in hotels, transport hubs, rental agencies, and embassies. Instead of exposing full identity documents, the system verifies a tourist’s identity and shares only necessary attributes such as name, validity period, nationality, or stay details.
 
-This project is built with Next.js, Neon Serverless Postgres, and MongoDB Atlas, and it includes:
+This project is built with Next.js, Neon Serverless Postgres, MongoDB Atlas, and a dedicated FastAPI Python ML service. It includes:
 - authentication with Google OAuth and email-based sign in
 - profile and KYC data management
+- active-learning document authenticity ML model (Scikit-Learn)
+- AWS Rekognition facial biometrics and live SNS emergency alerts
+- AI-assisted Tourist Safety Drawer with real-time incident guidance
 - QR-based selective disclosure flows
 - consent request approval and denial handling
 - SOS alert creation and command center tracking
@@ -28,6 +31,13 @@ This project is built with Next.js, Neon Serverless Postgres, and MongoDB Atlas,
 ---
 
 ## Key Features
+
+### AI & Machine Learning Intelligence
+- **Active-Learning Document ML Pipeline**: Extracts visual and structural features (blur, entropy, contrast, edge density, aspect ratio) with a Scikit-learn RandomForest model
+- **Authority Model Retraining**: Retrain document authenticity models on-demand directly from the Admin Portal using verified ground-truth datasets
+- **Real-Time Upload Evaluation**: Immediate client-side feedback on image blur and resolution quality before document submission
+- **Facial Biometric Matching**: Seamless integration with AWS Rekognition for facial comparison and liveness verification
+- **Interactive Tourist Safety Assistant**: Instant floating AI drawer offering localized emergency advice, rapid embassy contacts, and safety protocols
 
 ### Tourist Experience
 - Secure account creation and sign-in
@@ -42,6 +52,7 @@ This project is built with Next.js, Neon Serverless Postgres, and MongoDB Atlas,
 - Emergency command console for SOS triage
 - Safety geofence visibility
 - Real-time alert dispatch telemetry
+- Active learning dataset statistics and ML model inspector
 
 ### Privacy & Security
 - Attribute-based sharing instead of raw passport exposure
@@ -55,14 +66,12 @@ This project is built with Next.js, Neon Serverless Postgres, and MongoDB Atlas,
 
 ## Tech Stack
 
-- Next.js 16
-- React 19
-- Tailwind CSS
-- Neon Serverless Postgres (`@neondatabase/serverless`)
-- MongoDB Atlas (Mongoose)
-- Google OAuth 2.0
-- Web Crypto API for JWT signing
-- QR code and barcode generation
+- **Frontend & App Framework**: Next.js 16 (Turbopack, App Router), React 19, Tailwind CSS
+- **Databases**: Neon Serverless Postgres (`@neondatabase/serverless`), MongoDB Atlas (`mongoose`)
+- **Python ML Microservice**: FastAPI, Uvicorn, Scikit-learn, NumPy, Pillow, Pytest
+- **Cloud & AI Services**: AWS Rekognition, AWS SNS, Cloudinary
+- **Security & Identity**: Google OAuth 2.0, Web Crypto API for JWT signing, SHA-256 password hashing
+- **Export & Barcodes**: `html-to-image`, `jspdf`, `qrcode`, `jsbarcode`
 
 ---
 
@@ -72,25 +81,34 @@ This project is built with Next.js, Neon Serverless Postgres, and MongoDB Atlas,
 safir_pass/
 ├── app/
 │   ├── api/
-│   ├── auth/
-│   ├── dashboard/
-│   ├── about/
-│   ├── embassy/
-│   ├── verify/
+│   │   ├── admin/documents/dataset/  # ML active learning dataset routes
+│   │   ├── assistant/                # Safety assistant chat route
+│   │   ├── fastapi/[...path]/        # FastAPI reverse proxy route
+│   │   ├── kyc/                      # Document & biometric verification
+│   │   └── ...
+│   ├── admin/                        # Admin dashboard & model retraining
+│   ├── dashboard/                    # Tourist verification, ID & SOS
 │   └── ...
 ├── components/
+│   ├── SafetyAssistantDrawer.jsx     # Floating AI safety assistant
+│   └── ...
 ├── lib/
 │   ├── db/
-│   │   ├── postgres.js
-│   │   └── mongoose.js
-│   └── ...
-├── public/
+│   │   ├── postgres.js               # Neon PostgreSQL client
+│   │   └── mongoose.js               # MongoDB Mongoose models
+│   ├── fastapi.js                    # FastAPI client integration
+│   └── password.js                   # Secure password utilities
+├── python-services/                  # Python FastAPI & ML microservice
+│   ├── app/
+│   │   ├── document_ml.py            # Active learning document model
+│   │   ├── integrations.py          # AWS Rekognition & SNS
+│   │   ├── main.py                  # FastAPI application entry
+│   │   └── ...
+│   └── tests/                        # FastAPI test suite
 ├── database/
 │   └── neon_schema.sql
-├── .env.example
 ├── package.json
-├── README.md
-└── next.config.mjs
+└── README.md
 ```
 
 ---
